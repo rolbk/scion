@@ -1,0 +1,27 @@
+---
+ASes:
+  "42-ffaa:1:1":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    underlay: UDP/IPv4
+
+  "42-ffaa:1:2":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    underlay: UDP/IPv4
+
+  "42-ffaa:1:3":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    underlay: UDP/IPv4
+
+links:
+  - { a: "42-ffaa:1:1-A#1", b: "42-ffaa:1:2-A#1", linkAtoB: CORE }
+  - { a: "42-ffaa:1:1-A#2", b: "42-ffaa:1:3-A#1", linkAtoB: CORE }
+  - { a: "42-ffaa:1:2-A#2", b: "42-ffaa:1:3-A#2", linkAtoB: CORE }
