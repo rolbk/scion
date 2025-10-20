@@ -1,0 +1,12 @@
+#!/bin/bash
+
+ip address add 10.0.13.3/24 dev eth0
+ip address add 10.0.23.3/24 dev eth1
+ip address add 10.0.34.3/24 dev eth2
+ip address add 10.0.35.3/24 dev eth3
+
+systemctl start scion-dispatcher.service
+systemctl start scion-router.service
+systemctl start scion-control.service
+systemctl start scion-daemon.service
+systemctl status scion-*.service

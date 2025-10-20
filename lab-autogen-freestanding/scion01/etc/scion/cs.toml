@@ -1,0 +1,20 @@
+[general]
+id = "cs42-ffaa_1_1-1"
+config_dir = "/etc/scion"
+
+[trust_db]
+connection = "/var/lib/scion/control.trust.db"
+
+[beacon_db]
+connection = "/var/lib/scion/control.beacon.db"
+
+[path_db]
+connection = "/var/lib/scion/control.path.db"
+
+[features]
+
+[ca]
+mode = "in-process"
+
+[log.console]
+level = "debug"

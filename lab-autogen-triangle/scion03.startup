@@ -1,0 +1,13 @@
+#!/bin/bash
+
+ip address add 10.0.13.3/24 dev eth0
+ip address add 10.0.23.3/24 dev eth1
+
+####### DO NOT TOUCH THE FOLLOWING LINE #######
+tc qdisc add dev eth0 root netem delay 50ms 5ms
+
+systemctl start scion-dispatcher.service
+systemctl start scion-router.service
+systemctl start scion-control.service
+systemctl start scion-daemon.service
+systemctl status scion-*.service

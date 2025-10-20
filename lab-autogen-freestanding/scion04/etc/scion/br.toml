@@ -1,0 +1,8 @@
+[general]
+id = "br42-ffaa_1_4-1"
+config_dir = "/etc/scion"
+
+[features]
+
+[log.console]
+level = "debug"
