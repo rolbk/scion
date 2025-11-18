@@ -46,7 +46,6 @@ type Fetcher interface {
 
 type fetcher struct {
 	pather segfetcher.Pather
-	config config.SDConfig
 }
 
 type FetcherConfig struct {
@@ -100,7 +99,6 @@ func NewFetcher(cfg FetcherConfig) Fetcher {
 				Inspector: cfg.Inspector,
 			},
 		},
-		config: cfg.Cfg,
 	}
 }
 
