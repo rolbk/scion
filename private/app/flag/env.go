@@ -34,6 +34,22 @@ const (
 	defaultDaemon = daemon.DefaultAPIAddress
 
 	defaultEnvironmentFile = "/etc/scion/environment.json"
+
+	// Local environment variable name for local address
+	envLocalAddr = "SCION_LOCAL_ADDR"
+
+	// EnvBootstrapTopoFile specifies a topology file to use for bootstrapping
+	envBootstrapTopoFile = "SCION_BOOTSTRAP_TOPO_FILE"
+	// EnvBootstrapHost specifies a bootstrap server address (IP:port)
+	envBootstrapHost = "SCION_BOOTSTRAP_HOST"
+	// EnvBootstrapNAPTRName specifies a DNS name for NAPTR-based discovery
+	envBootstrapNAPTRName = "SCION_BOOTSTRAP_NAPTR_NAME"
+	// EnvDaemon specifies the daemon address
+	envDaemon = "SCION_DAEMON_ADDRESS"
+	// EnvDNSSearchDomains specifies DNS search domains for discovery
+	envDNSSearchDomains = "SCION_DNS_SEARCH_DOMAINS"
+	// EnvUseOSSearchDomains enables using OS-configured DNS search domains
+	envUseOSSearchDomains = "SCION_USE_OS_SEARCH_DOMAINS"
 )
 
 type stringVal string
@@ -77,17 +93,23 @@ func (v *ipVal) String() string { return netip.Addr(*v).String() }
 // SCIONEnvironment can be used to access the common SCION configuration values,
 // like the SCION daemon address and the local IP as well as the local ISD-AS.
 type SCIONEnvironment struct {
-	sciondFlag   *pflag.Flag
-	sciondEnv    *string
-	ia           addr.IA
-	iaFlag       *pflag.Flag
-	local        netip.Addr
-	localEnv     *netip.Addr
-	localFlag    *pflag.Flag
-	topology     string
-	topologyFlag *pflag.Flag
-	file         env.SCION
-	filepath     string
+	sciondFlag         *pflag.Flag
+	sciondEnv          *string
+	ia                 addr.IA
+	iaFlag             *pflag.Flag
+	local              netip.Addr
+	localEnv           *netip.Addr
+	localFlag          *pflag.Flag
+	topology           string
+	topologyFlag       *pflag.Flag
+	bootstrapHost      string
+	bootstrapHostFlag  *pflag.Flag
+	bootstrapHostEnv   *string
+	bootstrapNAPTR     string
+	bootstrapNAPTRFlag *pflag.Flag
+	bootstrapNAPTREnv  *string
+	file               env.SCION
+	filepath           string
 
 	mtx sync.Mutex
 }
@@ -109,6 +131,10 @@ func (e *SCIONEnvironment) Register(flagSet *pflag.FlagSet) {
 		"Local IP address to listen on.")
 	e.topologyFlag = flagSet.VarPF((*stringVal)(&e.topology), "topology", "",
 		"Path to topology file. If set, use local daemon instead of connecting to daemon.")
+	e.bootstrapHostFlag = flagSet.VarPF((*stringVal)(&e.bootstrapHost), "bootstrap-host", "",
+		"Bootstrap server address (IP:port) for SCION network discovery.")
+	e.bootstrapNAPTRFlag = flagSet.VarPF((*stringVal)(&e.bootstrapNAPTR), "bootstrap-naptr", "",
+		"DNS name for NAPTR-based SCION network discovery.")
 }
 
 // LoadExternalVar loads variables from the SCION environment file and from the
@@ -154,15 +180,21 @@ func (e *SCIONEnvironment) loadFile() error {
 // before accessing the values, otherwise the environment variables are not
 // respected.
 func (e *SCIONEnvironment) loadEnv() error {
-	if d, ok := os.LookupEnv("SCION_DAEMON"); ok {
+	if d, ok := os.LookupEnv(envDaemon); ok {
 		e.sciondEnv = &d
 	}
-	if l, ok := os.LookupEnv("SCION_LOCAL_ADDR"); ok {
+	if l, ok := os.LookupEnv(envLocalAddr); ok {
 		a, err := netip.ParseAddr(l)
 		if err != nil {
-			return serrors.Wrap("parsing SCION_LOCAL_ADDR", err)
+			return serrors.Wrap("parsing "+envLocalAddr, err)
 		}
 		e.localEnv = &a
+	}
+	if h, ok := os.LookupEnv(envBootstrapHost); ok {
+		e.bootstrapHostEnv = &h
+	}
+	if n, ok := os.LookupEnv(envBootstrapNAPTRName); ok {
+		e.bootstrapNAPTREnv = &n
 	}
 	return nil
 }
@@ -220,6 +252,42 @@ func (e *SCIONEnvironment) Topology() string {
 
 	if e.topologyFlag != nil && e.topologyFlag.Changed {
 		return e.topology
+	}
+	return ""
+}
+
+// BootstrapHost returns the bootstrap server address. The value is loaded from one of
+// the following sources with the precedence as listed:
+//  1. Command line flag (--bootstrap-host)
+//  2. Environment variable (see client.EnvBootstrapHost)
+//  3. Empty string (not set)
+func (e *SCIONEnvironment) BootstrapHost() string {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	if e.bootstrapHostFlag != nil && e.bootstrapHostFlag.Changed {
+		return e.bootstrapHost
+	}
+	if e.bootstrapHostEnv != nil {
+		return *e.bootstrapHostEnv
+	}
+	return ""
+}
+
+// BootstrapNAPTR returns the DNS name for NAPTR-based discovery. The value is loaded from
+// one of the following sources with the precedence as listed:
+//  1. Command line flag (--bootstrap-naptr)
+//  2. Environment variable (see client.EnvBootstrapNAPTRName)
+//  3. Empty string (not set)
+func (e *SCIONEnvironment) BootstrapNAPTR() string {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	if e.bootstrapNAPTRFlag != nil && e.bootstrapNAPTRFlag.Changed {
+		return e.bootstrapNAPTR
+	}
+	if e.bootstrapNAPTREnv != nil {
+		return *e.bootstrapNAPTREnv
 	}
 	return ""
 }
