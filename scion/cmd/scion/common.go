@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,9 +24,12 @@ import (
 	"time"
 
 	"github.com/scionproto/scion/pkg/addr"
+	"github.com/scionproto/scion/pkg/daemon"
+	"github.com/scionproto/scion/pkg/daemon/client"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/pkg/segment/iface"
 	"github.com/scionproto/scion/pkg/snet"
+	"github.com/scionproto/scion/private/app/flag"
 )
 
 // Path defines the base model for the `ping` and `traceroute` result path
@@ -74,6 +78,31 @@ func getPrintf(output string, writer io.Writer) (func(format string, ctx ...any)
 	default:
 		return nil, serrors.New("format not supported", "format", output)
 	}
+}
+
+// getConnector returns a daemon connector using the environment configuration.
+// It respects the precedence: command line flag > environment variable > config file > default.
+func getConnector(ctx context.Context, envFlags *flag.SCIONEnvironment) (daemon.Connector, error) {
+	// Load external vars from environment or config file
+	if err := envFlags.LoadExternalVars(); err != nil {
+		return nil, serrors.Wrap("loading external variables", err)
+	}
+
+	// Create connector options from environment (already handles precedence)
+	opts := client.ConnectorOptions{
+		TopoFile:           envFlags.Topology(),
+		DaemonAddr:         envFlags.Daemon(),
+		BootstrapHost:      envFlags.BootstrapHost(),
+		BootstrapNAPTRName: envFlags.BootstrapNAPTR(),
+	}
+
+	// Use the connector with options
+	conn, err := client.ConnectorWithOptions(ctx, opts)
+	if err != nil {
+		return nil, serrors.Wrap("getting daemon connector", err)
+	}
+
+	return conn, nil
 }
 
 type durationMillis time.Duration

@@ -26,7 +26,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/scionproto/scion/pkg/addr"
-	"github.com/scionproto/scion/pkg/daemon/client"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/private/app"
@@ -95,29 +94,17 @@ On other errors, showpaths will exit with code 2.
 
 			cmd.SilenceUsage = true
 
-			if err := envFlags.LoadExternalVars(); err != nil {
-				return err
-			}
-
 			span, traceCtx := tracing.CtxWith(context.Background(), "run")
 			span.SetTag("dst.isd_as", dst)
 			defer span.Finish()
 
-			// Check if we should use a local daemon or connect to a remote one
-			topoFile := envFlags.Topology()
-			if topoFile != "" {
-				// Use local daemon with topology file
-				log.Debug("Using local daemon with topology file", "topology", topoFile)
-				localDaemon, err := client.NewLocalDaemon(traceCtx, topoFile)
-				if err != nil {
-					return serrors.Wrap("creating local daemon", err)
-				}
-				flags.cfg.Connector = localDaemon
-			} else {
-				// Use remote daemon
-				flags.cfg.Daemon = envFlags.Daemon()
-				log.Debug("Using remote daemon", "daemon", flags.cfg.Daemon)
+			// Use default service connector which handles all bootstrap methods
+			conn, err := getConnector(traceCtx, &envFlags)
+			if err != nil {
+				return serrors.Wrap("getting daemon connector", err)
 			}
+			flags.cfg.Connector = conn
+			log.Debug("Using daemon connector via default service")
 
 			flags.cfg.Local = net.IP(envFlags.Local().AsSlice())
 			log.Debug("Using local IP", "local", flags.cfg.Local)
