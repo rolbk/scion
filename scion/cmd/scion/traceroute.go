@@ -30,7 +30,6 @@ import (
 
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/daemon"
-	"github.com/scionproto/scion/pkg/daemon/client"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/pkg/snet"
@@ -113,34 +112,12 @@ On other errors, traceroute will exit with code 2.
 			span.SetTag("dst.host", remote.Host.IP())
 			defer span.Finish()
 
-			// Check if we should use a local daemon or connect to a remote one
-			var sd daemon.Connector
-			var sdClose func() error
-			topoFile := envFlags.Topology()
-			if topoFile != "" {
-				// Use local daemon with topology file
-				log.Debug("Using local daemon with topology file", "topology", topoFile)
-				localDaemon, err := client.NewLocalDaemon(traceCtx, topoFile)
-				if err != nil {
-					return serrors.Wrap("creating local daemon", err)
-				}
-				sd = localDaemon
-				sdClose = func() error { return nil } // No cleanup needed for local daemon
-			} else {
-				// Connect to remote daemon
-				daemonAddr := envFlags.Daemon()
-				log.Debug("Connecting to SCION daemon", "daemon", daemonAddr)
-
-				ctx, cancelF := context.WithTimeout(traceCtx, time.Second)
-				defer cancelF()
-				remoteSd, err := daemon.NewService(daemonAddr).Connect(ctx)
-				if err != nil {
-					return serrors.Wrap("connecting to SCION Daemon", err)
-				}
-				sd = remoteSd
-				sdClose = remoteSd.Close
+			// Use default service connector which handles all bootstrap methods
+			sd, err := getConnector(traceCtx, &envFlags)
+			if err != nil {
+				return serrors.Wrap("getting daemon connector", err)
 			}
-			defer sdClose()
+			log.Debug("Using daemon connector via default service")
 
 			localIP := net.IP(envFlags.Local().AsSlice())
 			log.Debug("Using local IP", "local", localIP)
