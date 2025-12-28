@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 
 	"github.com/scionproto/scion/pkg/addr"
-	libgrpc "github.com/scionproto/scion/pkg/grpc"
+	"github.com/scionproto/scion/pkg/grpc"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/metrics"
 	"github.com/scionproto/scion/pkg/private/serrors"
@@ -35,7 +35,7 @@ func TrustEngine(
 	cfgDir string,
 	ia addr.IA,
 	db trust.DB,
-	dialer libgrpc.Dialer,
+	dialer grpc.Dialer,
 ) (trust.Engine, error) {
 	certsDir := filepath.Join(cfgDir, "certs")
 	loaded, err := trust.LoadTRCs(ctx, certsDir, db)
@@ -52,8 +52,10 @@ func TrustEngine(
 	}
 	loaded, err = trust.LoadChains(ctx, certsDir, db)
 	if err != nil {
-		return trust.Engine{}, serrors.Wrap("loading certificate chains",
-			err)
+		return trust.Engine{}, serrors.Wrap(
+			"loading certificate chains",
+			err,
+		)
 	}
 	log.Info("Certificate chains loaded", "files", loaded.Loaded)
 	for f, r := range loaded.Ignored {
