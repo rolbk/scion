@@ -77,14 +77,20 @@ func addFlags() error {
 	flag.Var(&Local, "local", "(Mandatory) address to listen on")
 	flag.StringVar(&Mode, "mode", ModeClient, "Run in "+ModeClient+" or "+ModeServer+" mode")
 	flag.StringVar(&Progress, "progress", "", "Socket to write progress to")
-	flag.StringVar(&daemonAddr, "sciond", "",
-		"SCION Daemon address. If set, uses remote daemon instead of standalone daemon.")
-	flag.StringVar(&topoDir, "topoDir", "",
-		"Directory containing topology files. Used for standalone daemon (default mode).")
+	flag.StringVar(
+		&daemonAddr, "sciond", "",
+		"SCION Daemon address. If set, uses remote daemon instead of standalone daemon.",
+	)
+	flag.StringVar(
+		&topoDir, "topoDir", "",
+		"Directory containing topology files. Used for standalone daemon (default mode).",
+	)
 	flag.IntVar(&Attempts, "attempts", 1, "Number of attempts before giving up")
 	flag.StringVar(&logConsole, "log.console", "info", "Console logging level: debug|info|error")
-	flag.StringVar(&features, "features", "",
-		fmt.Sprintf("enable development features (%v)", feature.String(&feature.Default{}, "|")))
+	flag.StringVar(
+		&features, "features", "",
+		fmt.Sprintf("enable development features (%v)", feature.String(&feature.Default{}, "|")),
+	)
 	return nil
 }
 
@@ -156,7 +162,8 @@ func SDConn() daemon.Connector {
 
 	// Construct topology file path from the local IA
 	asDir := addr.FormatAS(Local.IA.AS(), addr.WithDefaultPrefix(), addr.WithFileSeparator())
-	topoFile := filepath.Join(topoDir, asDir, "topology.json")
+	asPath := filepath.Join(topoDir, asDir)
+	topoFile := filepath.Join(asPath, "topology.json")
 
 	log.Debug("Using standalone daemon", "topology", topoFile)
 	ctx := context.Background()
@@ -164,7 +171,9 @@ func SDConn() daemon.Connector {
 	if err != nil {
 		LogFatal("Unable to load topology", "err", err, "topoFile", topoFile)
 	}
-	conn, err := daemon.NewStandaloneService(ctx, topo, daemon.WithDisableSegVerification())
+	conn, err := daemon.NewStandaloneService(
+		ctx, topo, daemon.WithCertsDir(filepath.Join(asPath, "certs")),
+	)
 	if err != nil {
 		LogFatal("Unable to create standalone daemon", "err", err, "topoFile", topoFile)
 	}
