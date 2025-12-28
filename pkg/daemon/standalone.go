@@ -274,12 +274,9 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 	}
 
 	if options.EnableMetrics {
-		// Create server metrics
-		serverMetrics := newServerMetrics()
-		// Wrap connector with metrics
 		connector = &ConnectorMetricsWrapper{
 			Connector: connector,
-			Metrics:   &serverMetrics,
+			Metrics:   NewBackendMetrics("local_sd"),
 		}
 	}
 
@@ -341,87 +338,5 @@ func loaderMetrics() topology.LoaderMetrics {
 			),
 		),
 		Updates: metrics.NewPromCounter(updates).With(prom.LabelResult, prom.Success),
-	}
-}
-
-// newServerMetrics creates metrics for the daemon
-func newServerMetrics() BackendMetrics {
-	return BackendMetrics{
-		PathsRequests: RequestMetrics{
-			Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
-				Namespace: "local_sd",
-				Subsystem: "path",
-				Name:      "requests_total",
-				Help:      "The amount of path requests received.",
-			}, PathsRequestsLabels),
-			Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
-				Namespace: "local_sd",
-				Subsystem: "path",
-				Name:      "request_duration_seconds",
-				Help:      "Time to handle path requests.",
-				Buckets:   prom.DefaultLatencyBuckets,
-			}, LatencyLabels),
-		},
-		ASRequests: RequestMetrics{
-			Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
-				Namespace: "local_sd",
-				Subsystem: "as_info",
-				Name:      "requests_total",
-				Help:      "The amount of AS requests received.",
-			}, ASRequestsLabels),
-			Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
-				Namespace: "local_sd",
-				Subsystem: "as_info",
-				Name:      "request_duration_seconds",
-				Help:      "Time to handle AS requests.",
-				Buckets:   prom.DefaultLatencyBuckets,
-			}, LatencyLabels),
-		},
-		InterfacesRequests: RequestMetrics{
-			Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
-				Namespace: "local_sd",
-				Subsystem: "if_info",
-				Name:      "requests_total",
-				Help:      "The amount of interfaces requests received.",
-			}, InterfacesRequestsLabels),
-			Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
-				Namespace: "local_sd",
-				Subsystem: "if_info",
-				Name:      "request_duration_seconds",
-				Help:      "Time to handle interfaces requests.",
-				Buckets:   prom.DefaultLatencyBuckets,
-			}, LatencyLabels),
-		},
-		ServicesRequests: RequestMetrics{
-			Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
-				Namespace: "local_sd",
-				Subsystem: "service_info",
-				Name:      "requests_total",
-				Help:      "The amount of services requests received.",
-			}, ServicesRequestsLabels),
-			Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
-				Namespace: "local_sd",
-				Subsystem: "service_info",
-				Name:      "request_duration_seconds",
-				Help:      "Time to handle services requests.",
-				Buckets:   prom.DefaultLatencyBuckets,
-			}, LatencyLabels),
-		},
-		InterfaceDownNotifications: RequestMetrics{
-			Requests: metrics.NewPromCounter(prom.SafeRegister(
-				prometheus.NewCounterVec(prometheus.CounterOpts{
-					Namespace: "local_sd",
-					Name:      "received_revocations_total",
-					Help:      "The amount of revocations received.",
-				}, InterfaceDownNotificationsLabels)).(*prometheus.CounterVec),
-			),
-			Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
-				Namespace: "local_sd",
-				Subsystem: "revocation",
-				Name:      "notification_duration_seconds",
-				Help:      "Time to handle interface down notifications.",
-				Buckets:   prom.DefaultLatencyBuckets,
-			}, LatencyLabels),
-		},
 	}
 }

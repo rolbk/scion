@@ -21,15 +21,12 @@ import (
 	"strconv"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/scionproto/scion/daemon/drkey"
 	"github.com/scionproto/scion/daemon/internal/servers"
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/daemon"
 	"github.com/scionproto/scion/pkg/daemon/fetcher"
-	"github.com/scionproto/scion/pkg/metrics"
-	"github.com/scionproto/scion/pkg/private/prom"
 	"github.com/scionproto/scion/private/env"
 	"github.com/scionproto/scion/private/revcache"
 	"github.com/scionproto/scion/private/trust"
@@ -71,84 +68,7 @@ func NewServer(cfg ServerConfig) *servers.DaemonServer {
 				RevCache:    cfg.RevCache,
 				DRKeyClient: cfg.DRKeyClient,
 			},
-			Metrics: &daemon.BackendMetrics{
-				PathsRequests: daemon.RequestMetrics{
-					Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
-						Namespace: "sd",
-						Subsystem: "path",
-						Name:      "requests_total",
-						Help:      "The amount of path requests received.",
-					}, daemon.PathsRequestsLabels),
-					Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
-						Namespace: "sd",
-						Subsystem: "path",
-						Name:      "request_duration_seconds",
-						Help:      "Time to handle path requests.",
-						Buckets:   prom.DefaultLatencyBuckets,
-					}, daemon.LatencyLabels),
-				},
-				ASRequests: daemon.RequestMetrics{
-					Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
-						Namespace: "sd",
-						Subsystem: "as_info",
-						Name:      "requests_total",
-						Help:      "The amount of AS requests received.",
-					}, daemon.ASRequestsLabels),
-					Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
-						Namespace: "sd",
-						Subsystem: "as_info",
-						Name:      "request_duration_seconds",
-						Help:      "Time to handle AS requests.",
-						Buckets:   prom.DefaultLatencyBuckets,
-					}, daemon.LatencyLabels),
-				},
-				InterfacesRequests: daemon.RequestMetrics{
-					Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
-						Namespace: "sd",
-						Subsystem: "if_info",
-						Name:      "requests_total",
-						Help:      "The amount of interfaces requests received.",
-					}, daemon.InterfacesRequestsLabels),
-					Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
-						Namespace: "sd",
-						Subsystem: "if_info",
-						Name:      "request_duration_seconds",
-						Help:      "Time to handle interfaces requests.",
-						Buckets:   prom.DefaultLatencyBuckets,
-					}, daemon.LatencyLabels),
-				},
-				ServicesRequests: daemon.RequestMetrics{
-					Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
-						Namespace: "sd",
-						Subsystem: "service_info",
-						Name:      "requests_total",
-						Help:      "The amount of services requests received.",
-					}, daemon.ServicesRequestsLabels),
-					Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
-						Namespace: "sd",
-						Subsystem: "service_info",
-						Name:      "request_duration_seconds",
-						Help:      "Time to handle services requests.",
-						Buckets:   prom.DefaultLatencyBuckets,
-					}, daemon.LatencyLabels),
-				},
-				InterfaceDownNotifications: daemon.RequestMetrics{
-					Requests: metrics.NewPromCounter(prom.SafeRegister(
-						prometheus.NewCounterVec(prometheus.CounterOpts{
-							Namespace: "sd",
-							Name:      "received_revocations_total",
-							Help:      "The amount of revocations received.",
-						}, daemon.InterfaceDownNotificationsLabels)).(*prometheus.CounterVec),
-					),
-					Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
-						Namespace: "sd",
-						Subsystem: "revocation",
-						Name:      "notification_duration_seconds",
-						Help:      "Time to handle interface down notifications.",
-						Buckets:   prom.DefaultLatencyBuckets,
-					}, daemon.LatencyLabels),
-				},
-			},
+			Metrics: daemon.NewBackendMetrics("sd"),
 		},
 		ASInspector: cfg.Engine.Inspector,
 	}
