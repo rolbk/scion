@@ -56,8 +56,8 @@ type ServerConfig struct {
 // NewServer constructs a daemon API server.
 func NewServer(cfg ServerConfig) *servers.DaemonServer {
 	return &servers.DaemonServer{
-		Connector: &daemon.ConnectorMetricsWrapper{
-			Connector: &daemon.ConnectorBackend{
+		Connector: daemon.WrapWithMetrics(
+			&daemon.Daemon{
 				IA:  cfg.IA,
 				MTU: cfg.MTU,
 				// TODO(JordiSubira): This will be changed in the future to fetch
@@ -68,8 +68,7 @@ func NewServer(cfg ServerConfig) *servers.DaemonServer {
 				RevCache:    cfg.RevCache,
 				DRKeyClient: cfg.DRKeyClient,
 			},
-			Metrics: daemon.NewBackendMetrics("sd"),
-		},
+			"sd"),
 		ASInspector: cfg.Engine.Inspector,
 	}
 }
