@@ -140,11 +140,11 @@ Options
                                and all specified remotes are tried in order until success or all of them failed.
                                --remote is mutually exclusive with --ca.
       --reuse-key              Reuse the provided private key instead of creating a fresh private key
-      --sciond string          SCION Daemon address. (default "127.0.0.1:30255")
+      --sciond string          Connect to SCION Daemon at the specified address instead of using the local
+                               topology.json (IP:Port or "default" for 127.0.0.1:30255)
       --sequence string        Space separated list of hop predicates
       --subject string         The path to the custom subject for the CSR
       --timeout duration       The timeout for the renewal request per CA (default 10s)
-      --topology string        Path to topology file. If set, use local daemon instead of connecting to daemon.
       --tracing.agent string   The tracing agent address
       --trc strings            Comma-separated list of trusted TRC files or glob patterns. If more than two TRCs are specified,
                                 only up to two active TRCs with the highest Base version are used (required)

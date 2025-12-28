@@ -50,13 +50,17 @@ func realMain() int {
 	var scionEnv env.SCIONEnvironment
 
 	scionEnv.Register(flag.CommandLine)
-	flag.BoolVar(&serverMode, "server", false, "Demonstrate server-side key derivation."+
-		" (default demonstrate client-side key fetching)")
+	flag.BoolVar(
+		&serverMode, "server", false, "Demonstrate server-side key derivation."+
+			" (default demonstrate client-side key fetching)",
+	)
 	flag.StringVar(&serverAddrStr, "server-addr", "", "SCION address for the server-side.")
 	flag.StringVar(&clientAddrStr, "client-addr", "", "SCION address for the client-side.")
 	flag.Uint16Var(&protocol, "protocol", 1 /* SCMP */, "DRKey protocol identifier.")
-	flag.BoolVar(&fetchSV, "fetch-sv", false,
-		"Fetch protocol specific secret value to derive server-side keys.")
+	flag.BoolVar(
+		&fetchSV, "fetch-sv", false,
+		"Fetch protocol specific secret value to derive server-side keys.",
+	)
 	flag.Parse()
 	if err := scionEnv.LoadExternalVars(); err != nil {
 		fmt.Fprintln(os.Stderr, "Error reading SCION environment:", err)
@@ -100,7 +104,7 @@ func realMain() int {
 		DstHost: clientAddr.Host.IP.String(),
 	}
 
-	daemon, err := daemon.NewService(scionEnv.Daemon()).Connect(ctx)
+	daemon, err := daemon.DefaultConnector(ctx, daemon.WithDaemon(scionEnv.Daemon()))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error dialing SCION Daemon:", err)
 		return 1
@@ -116,10 +120,12 @@ func realMain() int {
 			// Fetch the Secret Value (SV); in a real application, this is only done at
 			// startup and refreshed for each epoch.
 			t0 = time.Now()
-			sv, err := server.FetchSV(ctx, drkey.SecretValueMeta{
-				ProtoId:  meta.ProtoId,
-				Validity: meta.Validity,
-			})
+			sv, err := server.FetchSV(
+				ctx, drkey.SecretValueMeta{
+					ProtoId:  meta.ProtoId,
+					Validity: meta.Validity,
+				},
+			)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "Error fetching secret value:", err)
 				return 1
@@ -136,13 +142,15 @@ func realMain() int {
 			// all hosts in the destination AS. Depending on the application, it can
 			// be cached and refreshed for each epoch.
 			t0 = time.Now()
-			hostASKey, err := server.FetchHostASKey(ctx, drkey.HostASMeta{
-				ProtoId:  meta.ProtoId,
-				Validity: meta.Validity,
-				SrcIA:    meta.SrcIA,
-				DstIA:    meta.DstIA,
-				SrcHost:  meta.SrcHost,
-			})
+			hostASKey, err := server.FetchHostASKey(
+				ctx, drkey.HostASMeta{
+					ProtoId:  meta.ProtoId,
+					Validity: meta.Validity,
+					SrcIA:    meta.SrcIA,
+					DstIA:    meta.DstIA,
+					SrcHost:  meta.SrcHost,
+				},
+			)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "Error fetching host-AS key:", err)
 				return 1
@@ -192,7 +200,8 @@ type Client struct {
 }
 
 func (c Client) FetchHostHostKey(
-	ctx context.Context, meta drkey.HostHostMeta) (drkey.HostHostKey, error) {
+	ctx context.Context, meta drkey.HostHostMeta,
+) (drkey.HostHostKey, error) {
 
 	// get level 3 key: (slow path)
 	return c.daemon.DRKeyGetHostHostKey(ctx, meta)
@@ -284,10 +293,12 @@ func (s Server) FetchSV(
 	defer conn.Close()
 	client := cppb.NewDRKeyIntraServiceClient(conn)
 
-	rep, err := client.DRKeySecretValue(ctx, &cppb.DRKeySecretValueRequest{
-		ValTime:    timestamppb.New(meta.Validity),
-		ProtocolId: dkpb.Protocol(meta.ProtoId),
-	})
+	rep, err := client.DRKeySecretValue(
+		ctx, &cppb.DRKeySecretValueRequest{
+			ValTime:    timestamppb.New(meta.Validity),
+			ProtocolId: dkpb.Protocol(meta.ProtoId),
+		},
+	)
 	if err != nil {
 		return drkey.SecretValue{}, serrors.Wrap("requesting drkey secret value", err)
 	}
@@ -324,7 +335,8 @@ func getSecretFromReply(
 }
 
 func (s Server) FetchHostASKey(
-	ctx context.Context, meta drkey.HostASMeta) (drkey.HostASKey, error) {
+	ctx context.Context, meta drkey.HostASMeta,
+) (drkey.HostASKey, error) {
 
 	// get level 2 key: (fast path)
 	return s.daemon.DRKeyGetHostASKey(ctx, meta)

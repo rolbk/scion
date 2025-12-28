@@ -77,17 +77,15 @@ func (v *ipVal) String() string { return netip.Addr(*v).String() }
 // SCIONEnvironment can be used to access the common SCION configuration values,
 // like the SCION daemon address and the local IP as well as the local ISD-AS.
 type SCIONEnvironment struct {
-	sciondFlag   *pflag.Flag
-	sciondEnv    *string
-	ia           addr.IA
-	iaFlag       *pflag.Flag
-	local        netip.Addr
-	localEnv     *netip.Addr
-	localFlag    *pflag.Flag
-	topology     string
-	topologyFlag *pflag.Flag
-	file         env.SCION
-	filepath     string
+	sciondFlag *pflag.Flag
+	sciondEnv  *string
+	ia         addr.IA
+	iaFlag     *pflag.Flag
+	local      netip.Addr
+	localEnv   *netip.Addr
+	localFlag  *pflag.Flag
+	file       env.SCION
+	filepath   string
 
 	mtx sync.Mutex
 }
@@ -100,15 +98,20 @@ func (e *SCIONEnvironment) Register(flagSet *pflag.FlagSet) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
-	sciond := defaultDaemon
-	e.sciondFlag = flagSet.VarPF((*stringVal)(&sciond), "sciond", "",
-		"SCION Daemon address.")
-	e.iaFlag = flagSet.VarPF((*iaVal)(&e.ia), "isd-as", "",
-		"The local ISD-AS to use.")
-	e.localFlag = flagSet.VarPF((*ipVal)(&e.local), "local", "l",
-		"Local IP address to listen on.")
-	e.topologyFlag = flagSet.VarPF((*stringVal)(&e.topology), "topology", "",
-		"Path to topology file. If set, use local daemon instead of connecting to daemon.")
+	sciond := ""
+	e.sciondFlag = flagSet.VarPF(
+		(*stringVal)(&sciond), "sciond", "",
+		`Connect to SCION Daemon at the specified address instead of using the local
+topology.json (IP:Port or "default" for 127.0.0.1:30255)`,
+	)
+	e.iaFlag = flagSet.VarPF(
+		(*iaVal)(&e.ia), "isd-as", "",
+		"The local ISD-AS to use.",
+	)
+	e.localFlag = flagSet.VarPF(
+		(*ipVal)(&e.local), "local", "l",
+		"Local IP address to listen on.",
+	)
 }
 
 // LoadExternalVar loads variables from the SCION environment file and from the
@@ -167,18 +170,25 @@ func (e *SCIONEnvironment) loadEnv() error {
 	return nil
 }
 
-// Daemon returns the path to the SCION daemon. The value is loaded from one of
-// the following sources with the precedence as listed:
-//  1. Command line flag
-//  2. Environment variable
+// Daemon returns the SCION daemon address if explicitly configured.
+// Returns empty string if no daemon was configured, allowing the caller
+// to fall back to using the local topology.
+// The value is loaded from one of the following sources with precedence:
+//  1. Command line flag (--sciond)
+//  2. Environment variable (SCION_DAEMON)
 //  3. Environment configuration file
-//  4. Default value.
+//
+// If none are set, returns empty string (not the default address).
 func (e *SCIONEnvironment) Daemon() string {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
 	if e.sciondFlag != nil && e.sciondFlag.Changed {
-		return e.sciondFlag.Value.String()
+		value := e.sciondFlag.Value.String()
+		if value == "default" {
+			return defaultDaemon
+		}
+		return value
 	}
 	if e.sciondEnv != nil {
 		return *e.sciondEnv
@@ -190,7 +200,7 @@ func (e *SCIONEnvironment) Daemon() string {
 	if as, ok := e.file.ASes[ia]; ok && as.DaemonAddress != "" {
 		return as.DaemonAddress
 	}
-	return defaultDaemon
+	return ""
 }
 
 // Local returns the loca IP to listen on. The value is loaded from one of the
@@ -209,17 +219,4 @@ func (e *SCIONEnvironment) Local() netip.Addr {
 		return *e.localEnv
 	}
 	return netip.Addr{}
-}
-
-// Topology returns the path to the topology file if the --topology flag was set.
-// Returns an empty string if the flag was not set, indicating that the normal
-// daemon connection should be used.
-func (e *SCIONEnvironment) Topology() string {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-
-	if e.topologyFlag != nil && e.topologyFlag.Changed {
-		return e.topology
-	}
-	return ""
 }

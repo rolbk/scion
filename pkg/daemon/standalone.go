@@ -48,6 +48,9 @@ import (
 // StandaloneOption is a functional option for NewStandaloneService.
 type StandaloneOption func(*standaloneOptions)
 
+// DefaultTopologyFile is the default path to the topology file.
+const DefaultTopologyFile = "/etc/scion/topology.json"
+
 // DefaultCertsDir is the default directory for trust material.
 const DefaultCertsDir = "/etc/scion/certs"
 
