@@ -17,7 +17,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -49,21 +48,21 @@ import (
 // StandaloneOption is a functional option for NewStandaloneService.
 type StandaloneOption func(*standaloneOptions)
 
-// DefaultConfigDir is the default configuration directory for SCION.
-const DefaultConfigDir = "/etc/scion"
+// DefaultCertsDir is the default directory for trust material.
+const DefaultCertsDir = "/etc/scion/certs"
 
 type standaloneOptions struct {
-	configDir              string
+	certsDir               string
 	disableSegVerification bool
 	enablePeriodicCleanup  bool
 	enableMetrics          bool
 }
 
-// WithConfigDir sets the configuration directory for trust material.
-// Defaults to /etc/scion.
-func WithConfigDir(dir string) StandaloneOption {
+// WithCertsDir sets the configuration directory for trust material.
+// Defaults to /etc/scion/certs.
+func WithCertsDir(dir string) StandaloneOption {
 	return func(o *standaloneOptions) {
-		o.configDir = dir
+		o.certsDir = dir
 	}
 }
 
@@ -167,7 +166,7 @@ func NewStandaloneService(
 	ctx context.Context, topo Topology, opts ...StandaloneOption,
 ) (Connector, error) {
 	options := &standaloneOptions{
-		configDir: DefaultConfigDir,
+		certsDir: DefaultCertsDir,
 	}
 	for _, opt := range opts {
 		opt(options)
@@ -251,7 +250,7 @@ func NewStandaloneService(
 			},
 		)
 		engine, err := TrustEngine(
-			errCtx, options.configDir, topo.IA(), trustDB, dialer,
+			errCtx, options.certsDir, topo.IA(), trustDB, dialer,
 		)
 		if err != nil {
 			return nil, serrors.Wrap("creating trust engine", err)
@@ -263,7 +262,7 @@ func NewStandaloneService(
 			MaxCacheExpiration: time.Minute,
 		}
 		trcLoader := trust.TRCLoader{
-			Dir: filepath.Join(options.configDir, "certs"),
+			Dir: options.certsDir,
 			DB:  trustDB,
 		}
 		//nolint:staticcheck // SA1019: fix later (https://github.com/scionproto/scion/issues/4776).

@@ -17,7 +17,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"path/filepath"
 
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/grpc"
@@ -32,12 +31,11 @@ import (
 // TrustEngine builds the trust engine backed by the trust database.
 func TrustEngine(
 	ctx context.Context,
-	cfgDir string,
+	certsDir string,
 	ia addr.IA,
 	db trust.DB,
 	dialer grpc.Dialer,
 ) (trust.Engine, error) {
-	certsDir := filepath.Join(cfgDir, "certs")
 	loaded, err := trust.LoadTRCs(ctx, certsDir, db)
 	if err != nil {
 		return trust.Engine{}, serrors.Wrap("loading TRCs", err)

@@ -167,8 +167,9 @@ func realMain(ctx context.Context) error {
 			),
 		},
 	)
+	certsDir := filepath.Join(globalCfg.General.ConfigDir, "certs")
 	engine, err := daemonpkg.TrustEngine(
-		errCtx, globalCfg.General.ConfigDir, topo.IA(), trustDB, dialer,
+		errCtx, certsDir, topo.IA(), trustDB, dialer,
 	)
 	if err != nil {
 		return serrors.Wrap("creating trust engine", err)
@@ -180,7 +181,7 @@ func realMain(ctx context.Context) error {
 		MaxCacheExpiration: globalCfg.TrustEngine.Cache.Expiration.Duration,
 	}
 	trcLoader := trust.TRCLoader{
-		Dir: filepath.Join(globalCfg.General.ConfigDir, "certs"),
+		Dir: certsDir,
 		DB:  trustDB,
 	}
 	//nolint:staticcheck // SA1019: fix later (https://github.com/scionproto/scion/issues/4776).
