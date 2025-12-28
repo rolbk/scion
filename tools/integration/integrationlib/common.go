@@ -160,10 +160,11 @@ func SDConn() daemon.Connector {
 
 	log.Debug("Using standalone daemon", "topology", topoFile)
 	ctx := context.Background()
-	conn, err := daemon.NewStandaloneService(ctx, daemon.StandaloneOptions{
-		TopoFile:               topoFile,
-		DisableSegVerification: true,
-	})
+	topo, err := daemon.LoadTopologyFromFile(ctx, topoFile)
+	if err != nil {
+		LogFatal("Unable to load topology", "err", err, "topoFile", topoFile)
+	}
+	conn, err := daemon.NewStandaloneService(ctx, topo, daemon.WithDisableSegVerification())
 	if err != nil {
 		LogFatal("Unable to create standalone daemon", "err", err, "topoFile", topoFile)
 	}
