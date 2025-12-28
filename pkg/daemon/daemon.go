@@ -25,7 +25,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"golang.org/x/sync/singleflight"
 
-	drkeydaemon "github.com/scionproto/scion/daemon/drkey"
+	drkeyengine "github.com/scionproto/scion/daemon/drkey"
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/daemon/fetcher"
 	"github.com/scionproto/scion/pkg/drkey"
@@ -52,7 +52,7 @@ type Daemon struct {
 	Topology    Topology
 	Fetcher     fetcher.Fetcher
 	RevCache    revcache.RevCache
-	DRKeyClient *drkeydaemon.ClientEngine
+	DRKeyClient *drkeyengine.ClientEngine
 
 	foregroundPathDedupe singleflight.Group
 	backgroundPathDedupe singleflight.Group
@@ -87,7 +87,8 @@ func (c *Daemon) Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, err
 }
 
 // Paths requests a set of end-to-end paths between source and destination.
-func (c *Daemon) Paths(ctx context.Context, dst, src addr.IA,
+func (c *Daemon) Paths(
+	ctx context.Context, dst, src addr.IA,
 	f PathReqFlags,
 ) ([]snet.Path, error) {
 	if _, ok := ctx.Deadline(); !ok {
@@ -103,8 +104,10 @@ func (c *Daemon) Paths(ctx context.Context, dst, src addr.IA,
 
 	paths, err := c.fetchPaths(ctx, &c.foregroundPathDedupe, src, dst, f.Refresh)
 	if err != nil {
-		log.FromCtx(ctx).Debug("Fetching paths", "err", err,
-			"src", src, "dst", dst, "refresh", f.Refresh)
+		log.FromCtx(ctx).Debug(
+			"Fetching paths", "err", err,
+			"src", src, "dst", dst, "refresh", f.Refresh,
+		)
 		return nil, err
 	}
 	return paths, nil
@@ -116,7 +119,8 @@ func (c *Daemon) fetchPaths(
 	src, dst addr.IA,
 	refresh bool,
 ) ([]snet.Path, error) {
-	r, err, _ := group.Do(fmt.Sprintf("%s%s%t", src, dst, refresh),
+	r, err, _ := group.Do(
+		fmt.Sprintf("%s%s%t", src, dst, refresh),
 		func() (any, error) {
 			return c.Fetcher.GetPaths(ctx, src, dst, refresh)
 		},
@@ -127,7 +131,8 @@ func (c *Daemon) fetchPaths(
 	return paths, err
 }
 
-func (c *Daemon) backgroundPaths(origCtx context.Context, src,
+func (c *Daemon) backgroundPaths(
+	origCtx context.Context, src,
 	dst addr.IA, refresh bool,
 ) {
 	backgroundTimeout := 5 * time.Second
@@ -145,13 +150,17 @@ func (c *Daemon) backgroundPaths(origCtx context.Context, src,
 	if span := opentracing.SpanFromContext(origCtx); span != nil {
 		spanOpts = append(spanOpts, opentracing.FollowsFrom(span.Context()))
 	}
-	span, ctx := opentracing.StartSpanFromContext(ctx,
-		"fetch.paths.background", spanOpts...)
+	span, ctx := opentracing.StartSpanFromContext(
+		ctx,
+		"fetch.paths.background", spanOpts...,
+	)
 	defer span.Finish()
 	//nolint:contextcheck // false positive.
 	if _, err := c.fetchPaths(ctx, &c.backgroundPathDedupe, src, dst, refresh); err != nil {
-		log.FromCtx(ctx).Debug("Error fetching paths (background)", "err", err,
-			"src", src, "dst", dst, "refresh", refresh)
+		log.FromCtx(ctx).Debug(
+			"Error fetching paths (background)", "err", err,
+			"src", src, "dst", dst, "refresh", refresh,
+		)
 	}
 }
 
@@ -173,15 +182,18 @@ func (c *Daemon) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
 }
 
 // SVCInfo requests information about infrastructure services.
-func (c *Daemon) SVCInfo(ctx context.Context,
+func (c *Daemon) SVCInfo(
+	ctx context.Context,
 	svcTypes []addr.SVC,
 ) (map[addr.SVC][]string, error) {
 	result := make(map[addr.SVC][]string)
 
 	// For now, we only support Control services.
 	if len(svcTypes) > 0 && !slices.Contains(svcTypes, addr.SVC(topology.Control)) {
-		return nil, serrors.New("requested SVC type not supported",
-			"requested", svcTypes)
+		return nil, serrors.New(
+			"requested SVC type not supported",
+			"requested", svcTypes,
+		)
 	}
 
 	var services []string
@@ -211,7 +223,8 @@ func (c *Daemon) RevNotification(ctx context.Context, revInfo *path_mgmt.RevInfo
 }
 
 // DRKeyGetASHostKey requests a AS-Host Key.
-func (c *Daemon) DRKeyGetASHostKey(ctx context.Context,
+func (c *Daemon) DRKeyGetASHostKey(
+	ctx context.Context,
 	meta drkey.ASHostMeta,
 ) (drkey.ASHostKey, error) {
 	if c.DRKeyClient == nil {
@@ -227,7 +240,8 @@ func (c *Daemon) DRKeyGetASHostKey(ctx context.Context,
 }
 
 // DRKeyGetHostASKey requests a Host-AS Key.
-func (c *Daemon) DRKeyGetHostASKey(ctx context.Context,
+func (c *Daemon) DRKeyGetHostASKey(
+	ctx context.Context,
 	meta drkey.HostASMeta,
 ) (drkey.HostASKey, error) {
 	if c.DRKeyClient == nil {
@@ -243,7 +257,8 @@ func (c *Daemon) DRKeyGetHostASKey(ctx context.Context,
 }
 
 // DRKeyGetHostHostKey requests a Host-Host Key.
-func (c *Daemon) DRKeyGetHostHostKey(ctx context.Context,
+func (c *Daemon) DRKeyGetHostHostKey(
+	ctx context.Context,
 	meta drkey.HostHostMeta,
 ) (drkey.HostHostKey, error) {
 	if c.DRKeyClient == nil {

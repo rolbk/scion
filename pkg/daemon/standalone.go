@@ -33,7 +33,7 @@ import (
 	"github.com/scionproto/scion/pkg/metrics"
 	"github.com/scionproto/scion/pkg/private/prom"
 	"github.com/scionproto/scion/pkg/private/serrors"
-	cryptopb "github.com/scionproto/scion/pkg/proto/crypto"
+	"github.com/scionproto/scion/pkg/proto/crypto"
 	"github.com/scionproto/scion/pkg/scrypto/cppki"
 	"github.com/scionproto/scion/pkg/scrypto/signed"
 	"github.com/scionproto/scion/private/pathdb"
@@ -41,7 +41,7 @@ import (
 	"github.com/scionproto/scion/private/revcache"
 	"github.com/scionproto/scion/private/segment/segfetcher"
 	segfetchergrpc "github.com/scionproto/scion/private/segment/segfetcher/grpc"
-	infra "github.com/scionproto/scion/private/segment/verifier"
+	segverifier "github.com/scionproto/scion/private/segment/verifier"
 	"github.com/scionproto/scion/private/storage"
 	truststoragemetrics "github.com/scionproto/scion/private/storage/trust/metrics"
 	"github.com/scionproto/scion/private/topology"
@@ -53,21 +53,22 @@ import (
 // acceptAllVerifier accepts all path segments without verification.
 type acceptAllVerifier struct{}
 
-func (acceptAllVerifier) Verify(ctx context.Context, signedMsg *cryptopb.SignedMessage,
+func (acceptAllVerifier) Verify(
+	ctx context.Context, signedMsg *crypto.SignedMessage,
 	associatedData ...[]byte,
 ) (*signed.Message, error) {
 	return nil, nil
 }
 
-func (v acceptAllVerifier) WithServer(net.Addr) infra.Verifier {
+func (v acceptAllVerifier) WithServer(net.Addr) segverifier.Verifier {
 	return v
 }
 
-func (v acceptAllVerifier) WithIA(addr.IA) infra.Verifier {
+func (v acceptAllVerifier) WithIA(addr.IA) segverifier.Verifier {
 	return v
 }
 
-func (v acceptAllVerifier) WithValidity(cppki.Validity) infra.Verifier {
+func (v acceptAllVerifier) WithValidity(cppki.Validity) segverifier.Verifier {
 	return v
 }
 
@@ -86,7 +87,7 @@ type StandaloneOptions struct {
 }
 
 // wrapper for the standalone service to keep track of background tasks and storages to be closed
-type wrapperWithClose struct {
+type standaloneConnector struct {
 	Connector
 
 	// background tasks and storages to be closed on Close()
@@ -107,7 +108,8 @@ type wrapperWithClose struct {
 //
 // Note: This function starts background tasks (cleaner, TRC loader) that should be stopped
 // when done. The caller should handle cleanup appropriately, typically via context cancellation.
-func NewStandaloneService(ctx context.Context, options StandaloneOptions,
+func NewStandaloneService(
+	ctx context.Context, options StandaloneOptions,
 ) (Connector, error) {
 	if options.Topo == nil && options.TopoFile == "" {
 		return nil, serrors.New("either topology or topology file path must be provided")
@@ -125,28 +127,34 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 	if topo == nil {
 		// Load topology
 		var err error
-		topo, err = topology.NewLoader(topology.LoaderCfg{
-			File:      options.TopoFile,
-			Reload:    nil, // No reload for local daemon
-			Validator: &topology.DefaultValidator{},
-			Metrics:   loaderMetrics(),
-		})
+		topo, err = topology.NewLoader(
+			topology.LoaderCfg{
+				File:      options.TopoFile,
+				Reload:    nil, // No reload for local daemon
+				Validator: &topology.DefaultValidator{},
+				Metrics:   newLoaderMetrics(),
+			},
+		)
 
 		if err != nil {
 			return nil, serrors.Wrap("creating topology loader", err)
 		}
-		g.Go(func() error {
-			defer log.HandlePanic()
-			return topo.Run(errCtx)
-		})
+		g.Go(
+			func() error {
+				defer log.HandlePanic()
+				return topo.Run(errCtx)
+			},
+		)
 	}
 
 	// Create dialer for control service
 	dialer := &grpc.TCPDialer{
 		SvcResolver: func(dst addr.SVC) []resolver.Address {
 			if base := dst.Base(); base != addr.SvcCS {
-				panic("unsupported address type, possible implementation error: " +
-					base.String())
+				panic(
+					"unsupported address type, possible implementation error: " +
+						base.String(),
+				)
 			}
 			targets := []resolver.Address{}
 			for _, entry := range topo.ControlServiceAddresses() {
@@ -175,17 +183,21 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 	var rcCleaner *periodic.Runner
 	if options.EnablePeriodicCleanup {
 		//nolint:staticcheck // SA1019: fix later (https://github.com/scionproto/scion/issues/4776).
-		cleaner = periodic.Start(pathdb.NewCleaner(pathDB, "sd_segments"),
-			300*time.Second, 295*time.Second)
+		cleaner = periodic.Start(
+			pathdb.NewCleaner(pathDB, "sd_segments"),
+			300*time.Second, 295*time.Second,
+		)
 
 		//nolint:staticcheck // SA1019: fix later (https://github.com/scionproto/scion/issues/4776).
-		rcCleaner = periodic.Start(revcache.NewCleaner(revCache, "sd_revocation"),
-			10*time.Second, 10*time.Second)
+		rcCleaner = periodic.Start(
+			revcache.NewCleaner(revCache, "sd_revocation"),
+			10*time.Second, 10*time.Second,
+		)
 	}
 
 	var trustDB storage.TrustDB
 	var inspector trust.Inspector
-	var verifier infra.Verifier
+	var verifier segverifier.Verifier
 	var trcLoaderTask *periodic.Runner
 
 	if options.DisableSegVerification {
@@ -198,16 +210,18 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 		if err != nil {
 			return nil, serrors.Wrap("initializing trust database", err)
 		}
-		trustDB = truststoragemetrics.WrapDB(trustDB, truststoragemetrics.Config{
-			Driver: string(storage.BackendSqlite),
-			QueriesTotal: metrics.NewPromCounterFrom(
-				prometheus.CounterOpts{
-					Name: "trustengine_db_queries_total",
-					Help: "Total queries to the database",
-				},
-				[]string{"driver", "operation", prom.LabelResult},
-			),
-		})
+		trustDB = truststoragemetrics.WrapDB(
+			trustDB, truststoragemetrics.Config{
+				Driver: string(storage.BackendSqlite),
+				QueriesTotal: metrics.NewPromCounterFrom(
+					prometheus.CounterOpts{
+						Name: "trustengine_db_queries_total",
+						Help: "Total queries to the database",
+					},
+					[]string{"driver", "operation", prom.LabelResult},
+				),
+			},
+		)
 		engine, err := TrustEngine(
 			errCtx, options.ConfigDir, topo.IA(), trustDB, dialer,
 		)
@@ -225,26 +239,32 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 			DB:  trustDB,
 		}
 		//nolint:staticcheck // SA1019: fix later (https://github.com/scionproto/scion/issues/4776).
-		trcLoaderTask = periodic.Start(periodic.Func{
-			Task: func(ctx context.Context) {
-				res, err := trcLoader.Load(ctx)
-				if err != nil {
-					log.SafeInfo(log.FromCtx(ctx), "TRC loading failed", "err", err)
-				}
-				if len(res.Loaded) > 0 {
-					log.SafeInfo(log.FromCtx(ctx),
-						"Loaded TRCs from disk", "trcs", res.Loaded)
-				}
-			},
-			TaskName: "daemon_trc_loader",
-		}, 10*time.Second, 10*time.Second)
+		trcLoaderTask = periodic.Start(
+			periodic.Func{
+				Task: func(ctx context.Context) {
+					res, err := trcLoader.Load(ctx)
+					if err != nil {
+						log.SafeInfo(log.FromCtx(ctx), "TRC loading failed", "err", err)
+					}
+					if len(res.Loaded) > 0 {
+						log.SafeInfo(
+							log.FromCtx(ctx),
+							"Loaded TRCs from disk", "trcs", res.Loaded,
+						)
+					}
+				},
+				TaskName: "daemon_trc_loader",
+			}, 10*time.Second, 10*time.Second,
+		)
 
-		verifier = compat.Verifier{Verifier: trust.Verifier{
-			Engine:             engine,
-			Cache:              cache.New(time.Minute, time.Minute),
-			CacheHits:          metrics.NewPromCounter(trustmetrics.CacheHitsTotal),
-			MaxCacheExpiration: time.Minute,
-		}}
+		verifier = compat.Verifier{
+			Verifier: trust.Verifier{
+				Engine:             engine,
+				Cache:              cache.New(time.Minute, time.Minute),
+				CacheHits:          metrics.NewPromCounter(trustmetrics.CacheHitsTotal),
+				MaxCacheExpiration: time.Minute,
+			},
+		}
 	}
 
 	// Create fetcher
@@ -277,7 +297,7 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 		connector = WrapWithMetrics(connector, "local_sd")
 	}
 
-	connectorWithClose := wrapperWithClose{
+	connectorWithClose := standaloneConnector{
 		Connector:     connector,
 		pathDBCleaner: cleaner,
 		pathDB:        pathDB,
@@ -290,7 +310,7 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 	return connectorWithClose, nil
 }
 
-func (s wrapperWithClose) Close() error {
+func (s standaloneConnector) Close() error {
 	err := s.Connector.Close()
 
 	if s.pathDBCleaner != nil {
@@ -317,9 +337,10 @@ func (s wrapperWithClose) Close() error {
 	return err
 }
 
-// loaderMetrics creates metrics for the topology loader.
-func loaderMetrics() topology.LoaderMetrics {
-	updates := prom.NewCounterVec("", "",
+// newLoaderMetrics creates metrics for the topology loader.
+func newLoaderMetrics() topology.LoaderMetrics {
+	updates := prom.NewCounterVec(
+		"", "",
 		"topology_updates_total",
 		"The total number of updates.",
 		[]string{prom.LabelResult},
@@ -328,7 +349,8 @@ func loaderMetrics() topology.LoaderMetrics {
 		ValidationErrors: metrics.NewPromCounter(updates).With(prom.LabelResult, "err_validate"),
 		ReadErrors:       metrics.NewPromCounter(updates).With(prom.LabelResult, "err_read"),
 		LastUpdate: metrics.NewPromGauge(
-			prom.NewGaugeVec("", "",
+			prom.NewGaugeVec(
+				"", "",
 				"topology_last_update_time",
 				"Timestamp of the last successful update.",
 				[]string{},
