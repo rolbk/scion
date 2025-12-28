@@ -35,8 +35,8 @@ import (
 
 	"github.com/scionproto/scion/daemon"
 	"github.com/scionproto/scion/daemon/config"
-	sd_drkey "github.com/scionproto/scion/daemon/drkey"
-	sd_grpc "github.com/scionproto/scion/daemon/drkey/grpc"
+	sddrkey "github.com/scionproto/scion/daemon/drkey"
+	sdgrpc "github.com/scionproto/scion/daemon/drkey/grpc"
 	api "github.com/scionproto/scion/daemon/mgmtapi"
 	"github.com/scionproto/scion/pkg/addr"
 	daemonpkg "github.com/scionproto/scion/pkg/daemon"
@@ -48,10 +48,7 @@ import (
 	"github.com/scionproto/scion/pkg/metrics"
 	"github.com/scionproto/scion/pkg/private/prom"
 	"github.com/scionproto/scion/pkg/private/serrors"
-	cryptopb "github.com/scionproto/scion/pkg/proto/crypto"
 	sdpb "github.com/scionproto/scion/pkg/proto/daemon"
-	"github.com/scionproto/scion/pkg/scrypto/cppki"
-	"github.com/scionproto/scion/pkg/scrypto/signed"
 	"github.com/scionproto/scion/private/app"
 	"github.com/scionproto/scion/private/app/launcher"
 	cppkiapi "github.com/scionproto/scion/private/mgmtapi/cppki/api"
@@ -61,7 +58,7 @@ import (
 	"github.com/scionproto/scion/private/revcache"
 	"github.com/scionproto/scion/private/segment/segfetcher"
 	segfetchergrpc "github.com/scionproto/scion/private/segment/segfetcher/grpc"
-	infra "github.com/scionproto/scion/private/segment/verifier"
+	segverifier "github.com/scionproto/scion/private/segment/verifier"
 	"github.com/scionproto/scion/private/service"
 	"github.com/scionproto/scion/private/storage"
 	"github.com/scionproto/scion/private/storage/drkey/level2"
@@ -203,7 +200,7 @@ func realMain(ctx context.Context) error {
 	)
 	defer trcLoaderTask.Stop()
 
-	var drkeyClientEngine *sd_drkey.ClientEngine
+	var drkeyClientEngine *sddrkey.ClientEngine
 	if globalCfg.DRKeyLevel2DB.Connection != "" {
 		backend, err := storage.NewDRKeyLevel2Storage(globalCfg.DRKeyLevel2DB)
 		if err != nil {
@@ -232,10 +229,10 @@ func realMain(ctx context.Context) error {
 		}
 		defer level2DB.Close()
 
-		drkeyFetcher := &sd_grpc.Fetcher{
+		drkeyFetcher := &sdgrpc.Fetcher{
 			Dialer: dialer,
 		}
-		drkeyClientEngine = &sd_drkey.ClientEngine{
+		drkeyClientEngine = &sddrkey.ClientEngine{
 			IA:      topo.IA(),
 			DB:      level2DB,
 			Fetcher: drkeyFetcher,
@@ -273,9 +270,9 @@ func realMain(ctx context.Context) error {
 		}
 	}
 
-	createVerifier := func() infra.Verifier {
+	createVerifier := func() segverifier.Verifier {
 		if globalCfg.SD.DisableSegVerification {
-			return acceptAllVerifier{}
+			return segverifier.AcceptAll{}
 		}
 		return compat.Verifier{
 			Verifier: trust.Verifier{
@@ -400,27 +397,6 @@ func realMain(ctx context.Context) error {
 	)
 
 	return g.Wait()
-}
-
-type acceptAllVerifier struct{}
-
-func (acceptAllVerifier) Verify(
-	ctx context.Context, signedMsg *cryptopb.SignedMessage,
-	associatedData ...[]byte,
-) (*signed.Message, error) {
-	return nil, nil
-}
-
-func (v acceptAllVerifier) WithServer(net.Addr) infra.Verifier {
-	return v
-}
-
-func (v acceptAllVerifier) WithIA(addr.IA) infra.Verifier {
-	return v
-}
-
-func (v acceptAllVerifier) WithValidity(cppki.Validity) infra.Verifier {
-	return v
 }
 
 func loaderMetrics() topology.LoaderMetrics {
