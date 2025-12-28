@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package daemon
 
 import (
 	"context"
@@ -27,7 +27,6 @@ import (
 
 	drkeydaemon "github.com/scionproto/scion/daemon/drkey"
 	"github.com/scionproto/scion/pkg/addr"
-	"github.com/scionproto/scion/pkg/daemon"
 	"github.com/scionproto/scion/pkg/daemon/fetcher"
 	"github.com/scionproto/scion/pkg/drkey"
 	"github.com/scionproto/scion/pkg/log"
@@ -89,7 +88,7 @@ func (c *ConnectorBackend) Interfaces(ctx context.Context) (map[uint16]netip.Add
 
 // Paths requests a set of end-to-end paths between source and destination.
 func (c *ConnectorBackend) Paths(ctx context.Context, dst, src addr.IA,
-	f daemon.PathReqFlags,
+	f PathReqFlags,
 ) ([]snet.Path, error) {
 	if _, ok := ctx.Deadline(); !ok {
 		var cancelF context.CancelFunc
@@ -157,7 +156,7 @@ func (c *ConnectorBackend) backgroundPaths(origCtx context.Context, src,
 }
 
 // ASInfo requests information about AS ia.
-func (c *ConnectorBackend) ASInfo(ctx context.Context, ia addr.IA) (daemon.ASInfo, error) {
+func (c *ConnectorBackend) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
 	if ia.IsZero() {
 		ia = c.IA
 	}
@@ -167,7 +166,7 @@ func (c *ConnectorBackend) ASInfo(ctx context.Context, ia addr.IA) (daemon.ASInf
 		mtu = c.MTU
 	}
 
-	return daemon.ASInfo{
+	return ASInfo{
 		IA:  ia,
 		MTU: mtu,
 	}, nil

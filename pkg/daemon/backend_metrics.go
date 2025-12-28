@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package daemon
 
 import (
 	"context"
@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/scionproto/scion/pkg/addr"
-	"github.com/scionproto/scion/pkg/daemon"
 	"github.com/scionproto/scion/pkg/metrics"
 	"github.com/scionproto/scion/pkg/private/ctrl/path_mgmt"
 	"github.com/scionproto/scion/pkg/private/prom"
@@ -29,8 +28,8 @@ import (
 )
 
 type ConnectorMetricsWrapper struct {
-	daemon.Connector
-	Metrics *Metrics
+	Connector
+	Metrics *BackendMetrics
 }
 
 // Note: No metrics are collected for LocalIA, PortRange and DRKey functions.
@@ -47,7 +46,7 @@ func (c *ConnectorMetricsWrapper) Interfaces(ctx context.Context,
 }
 
 func (c *ConnectorMetricsWrapper) Paths(ctx context.Context, dst, src addr.IA,
-	f daemon.PathReqFlags,
+	f PathReqFlags,
 ) ([]snet.Path, error) {
 	start := time.Now()
 	paths, err := c.Connector.Paths(ctx, dst, src, f)
@@ -58,7 +57,7 @@ func (c *ConnectorMetricsWrapper) Paths(ctx context.Context, dst, src addr.IA,
 	return paths, unwrapMetricsError(err)
 }
 
-func (c *ConnectorMetricsWrapper) ASInfo(ctx context.Context, ia addr.IA) (daemon.ASInfo, error) {
+func (c *ConnectorMetricsWrapper) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
 	start := time.Now()
 	info, err := c.Connector.ASInfo(ctx, ia)
 	c.Metrics.ASRequests.inc(
@@ -105,7 +104,7 @@ var (
 
 // Metrics can be used to inject metrics into the SCION daemon server. Each
 // field may be set individually.
-type Metrics struct {
+type BackendMetrics struct {
 	PathsRequests              RequestMetrics
 	ASRequests                 RequestMetrics
 	InterfacesRequests         RequestMetrics

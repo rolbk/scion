@@ -30,7 +30,6 @@ import (
 
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/daemon"
-	standalonedaemon "github.com/scionproto/scion/pkg/daemon/standalone/daemon"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/pkg/snet"
@@ -161,7 +160,7 @@ func SDConn() daemon.Connector {
 
 	log.Debug("Using standalone daemon", "topology", topoFile)
 	ctx := context.Background()
-	conn, err := standalonedaemon.NewStandaloneService(ctx, standalonedaemon.StandaloneOptions{
+	conn, err := daemon.NewStandaloneService(ctx, daemon.StandaloneOptions{
 		TopoFile:               topoFile,
 		DisableSegVerification: true,
 	})
