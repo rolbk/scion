@@ -27,9 +27,7 @@ import (
 	"google.golang.org/grpc/resolver"
 
 	"github.com/scionproto/scion/pkg/addr"
-	daemonpkg "github.com/scionproto/scion/pkg/daemon"
 	"github.com/scionproto/scion/pkg/daemon/fetcher"
-	"github.com/scionproto/scion/pkg/daemon/server"
 	"github.com/scionproto/scion/pkg/grpc"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/metrics"
@@ -89,7 +87,7 @@ type StandaloneOptions struct {
 
 // wrapper for the standalone service to keep track of background tasks and storages to be closed
 type wrapperWithClose struct {
-	daemonpkg.Connector
+	Connector
 
 	// background tasks and storages to be closed on Close()
 	pathDBCleaner *periodic.Runner
@@ -110,7 +108,7 @@ type wrapperWithClose struct {
 // Note: This function starts background tasks (cleaner, TRC loader) that should be stopped
 // when done. The caller should handle cleanup appropriately, typically via context cancellation.
 func NewStandaloneService(ctx context.Context, options StandaloneOptions,
-) (daemonpkg.Connector, error) {
+) (Connector, error) {
 	if options.Topo == nil && options.TopoFile == "" {
 		return nil, serrors.New("either topology or topology file path must be provided")
 	}
@@ -210,7 +208,7 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 				[]string{"driver", "operation", prom.LabelResult},
 			),
 		})
-		engine, err := daemonpkg.TrustEngine(
+		engine, err := TrustEngine(
 			errCtx, options.ConfigDir, topo.IA(), trustDB, dialer,
 		)
 		if err != nil {
@@ -266,7 +264,7 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 	)
 
 	// Create and return the connector
-	var connector daemonpkg.Connector = &server.ConnectorBackend{
+	var connector Connector = &ConnectorBackend{
 		IA:          topo.IA(),
 		MTU:         topo.MTU(),
 		Topology:    topo,
@@ -279,7 +277,7 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 		// Create server metrics
 		serverMetrics := newServerMetrics()
 		// Wrap connector with metrics
-		connector = &server.ConnectorMetricsWrapper{
+		connector = &ConnectorMetricsWrapper{
 			Connector: connector,
 			Metrics:   &serverMetrics,
 		}
@@ -347,75 +345,75 @@ func loaderMetrics() topology.LoaderMetrics {
 }
 
 // newServerMetrics creates metrics for the daemon
-func newServerMetrics() server.Metrics {
-	return server.Metrics{
-		PathsRequests: server.RequestMetrics{
+func newServerMetrics() BackendMetrics {
+	return BackendMetrics{
+		PathsRequests: RequestMetrics{
 			Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
 				Namespace: "local_sd",
 				Subsystem: "path",
 				Name:      "requests_total",
 				Help:      "The amount of path requests received.",
-			}, server.PathsRequestsLabels),
+			}, PathsRequestsLabels),
 			Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
 				Namespace: "local_sd",
 				Subsystem: "path",
 				Name:      "request_duration_seconds",
 				Help:      "Time to handle path requests.",
 				Buckets:   prom.DefaultLatencyBuckets,
-			}, server.LatencyLabels),
+			}, LatencyLabels),
 		},
-		ASRequests: server.RequestMetrics{
+		ASRequests: RequestMetrics{
 			Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
 				Namespace: "local_sd",
 				Subsystem: "as_info",
 				Name:      "requests_total",
 				Help:      "The amount of AS requests received.",
-			}, server.ASRequestsLabels),
+			}, ASRequestsLabels),
 			Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
 				Namespace: "local_sd",
 				Subsystem: "as_info",
 				Name:      "request_duration_seconds",
 				Help:      "Time to handle AS requests.",
 				Buckets:   prom.DefaultLatencyBuckets,
-			}, server.LatencyLabels),
+			}, LatencyLabels),
 		},
-		InterfacesRequests: server.RequestMetrics{
+		InterfacesRequests: RequestMetrics{
 			Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
 				Namespace: "local_sd",
 				Subsystem: "if_info",
 				Name:      "requests_total",
 				Help:      "The amount of interfaces requests received.",
-			}, server.InterfacesRequestsLabels),
+			}, InterfacesRequestsLabels),
 			Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
 				Namespace: "local_sd",
 				Subsystem: "if_info",
 				Name:      "request_duration_seconds",
 				Help:      "Time to handle interfaces requests.",
 				Buckets:   prom.DefaultLatencyBuckets,
-			}, server.LatencyLabels),
+			}, LatencyLabels),
 		},
-		ServicesRequests: server.RequestMetrics{
+		ServicesRequests: RequestMetrics{
 			Requests: metrics.NewPromCounterFrom(prometheus.CounterOpts{
 				Namespace: "local_sd",
 				Subsystem: "service_info",
 				Name:      "requests_total",
 				Help:      "The amount of services requests received.",
-			}, server.ServicesRequestsLabels),
+			}, ServicesRequestsLabels),
 			Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
 				Namespace: "local_sd",
 				Subsystem: "service_info",
 				Name:      "request_duration_seconds",
 				Help:      "Time to handle services requests.",
 				Buckets:   prom.DefaultLatencyBuckets,
-			}, server.LatencyLabels),
+			}, LatencyLabels),
 		},
-		InterfaceDownNotifications: server.RequestMetrics{
+		InterfaceDownNotifications: RequestMetrics{
 			Requests: metrics.NewPromCounter(prom.SafeRegister(
 				prometheus.NewCounterVec(prometheus.CounterOpts{
 					Namespace: "local_sd",
 					Name:      "received_revocations_total",
 					Help:      "The amount of revocations received.",
-				}, server.InterfaceDownNotificationsLabels)).(*prometheus.CounterVec),
+				}, InterfaceDownNotificationsLabels)).(*prometheus.CounterVec),
 			),
 			Latency: metrics.NewPromHistogramFrom(prometheus.HistogramOpts{
 				Namespace: "local_sd",
@@ -423,7 +421,7 @@ func newServerMetrics() server.Metrics {
 				Name:      "notification_duration_seconds",
 				Help:      "Time to handle interface down notifications.",
 				Buckets:   prom.DefaultLatencyBuckets,
-			}, server.LatencyLabels),
+			}, LatencyLabels),
 		},
 	}
 }
