@@ -17,7 +17,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"net"
 	"path/filepath"
 	"time"
 
@@ -33,9 +32,6 @@ import (
 	"github.com/scionproto/scion/pkg/metrics"
 	"github.com/scionproto/scion/pkg/private/prom"
 	"github.com/scionproto/scion/pkg/private/serrors"
-	"github.com/scionproto/scion/pkg/proto/crypto"
-	"github.com/scionproto/scion/pkg/scrypto/cppki"
-	"github.com/scionproto/scion/pkg/scrypto/signed"
 	"github.com/scionproto/scion/private/pathdb"
 	"github.com/scionproto/scion/private/periodic"
 	"github.com/scionproto/scion/private/revcache"
@@ -50,33 +46,10 @@ import (
 	trustmetrics "github.com/scionproto/scion/private/trust/metrics"
 )
 
-// acceptAllVerifier accepts all path segments without verification.
-type acceptAllVerifier struct{}
-
-func (acceptAllVerifier) Verify(
-	ctx context.Context, signedMsg *crypto.SignedMessage,
-	associatedData ...[]byte,
-) (*signed.Message, error) {
-	return nil, nil
-}
-
-func (v acceptAllVerifier) WithServer(net.Addr) segverifier.Verifier {
-	return v
-}
-
-func (v acceptAllVerifier) WithIA(addr.IA) segverifier.Verifier {
-	return v
-}
-
-func (v acceptAllVerifier) WithValidity(cppki.Validity) segverifier.Verifier {
-	return v
-}
-
 type StandaloneOptions struct {
 	// either TopoFile or Topo must be set
 	TopoFile string
-	// either TopoFile or Topo must be set
-	Topo *topology.Loader
+	Topo     Topology
 
 	// global configuration directory, used for trust engine setup
 	ConfigDir string
@@ -125,10 +98,11 @@ func NewStandaloneService(
 
 	g, errCtx := errgroup.WithContext(ctx)
 	topo := options.Topo
+
 	if topo == nil {
 		// Load topology
 		var err error
-		topo, err = topology.NewLoader(
+		topoLoader, err := topology.NewLoader(
 			topology.LoaderCfg{
 				File:      options.TopoFile,
 				Reload:    nil, // No reload for local daemon
@@ -143,9 +117,10 @@ func NewStandaloneService(
 		g.Go(
 			func() error {
 				defer log.HandlePanic()
-				return topo.Run(errCtx)
+				return topoLoader.Run(errCtx)
 			},
 		)
+		topo = topoLoader
 	}
 
 	// Create dialer for control service
@@ -205,7 +180,7 @@ func NewStandaloneService(
 	if options.DisableSegVerification {
 		log.Info("SEGMENT VERIFICATION DISABLED -- SHOULD NOT USE IN PRODUCTION!")
 		inspector = nil // avoids requiring trust material
-		verifier = acceptAllVerifier{}
+		verifier = segverifier.AcceptAll{}
 	} else {
 		trustDB, err = storage.NewInMemoryTrustStorage()
 		if err != nil {

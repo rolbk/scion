@@ -17,7 +17,6 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/netip"
 	"slices"
 	"time"
@@ -37,13 +36,6 @@ import (
 	"github.com/scionproto/scion/private/revcache"
 	"github.com/scionproto/scion/private/topology"
 )
-
-type Topology interface {
-	IfIDs() []uint16
-	UnderlayNextHop(uint16) *net.UDPAddr
-	ControlServiceAddresses() []*net.UDPAddr
-	PortRange() (uint16, uint16)
-}
 
 // Daemon implements the Connector interface with the core business logic.
 type Daemon struct {
