@@ -264,7 +264,7 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 	)
 
 	// Create and return the connector
-	var connector Connector = &ConnectorBackend{
+	var connector Connector = &Daemon{
 		IA:          topo.IA(),
 		MTU:         topo.MTU(),
 		Topology:    topo,
@@ -274,10 +274,7 @@ func NewStandaloneService(ctx context.Context, options StandaloneOptions,
 	}
 
 	if options.EnableMetrics {
-		connector = &ConnectorMetricsWrapper{
-			Connector: connector,
-			Metrics:   NewBackendMetrics("local_sd"),
-		}
+		connector = WrapWithMetrics(connector, "local_sd")
 	}
 
 	connectorWithClose := wrapperWithClose{
