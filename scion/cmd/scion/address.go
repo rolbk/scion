@@ -65,33 +65,9 @@ case, the host could have multiple SCION addresses.
 			span, traceCtx := tracing.CtxWith(context.Background(), "run")
 			defer span.Finish()
 
-			// Check if we should use a local daemon or connect to a remote one
-			var sd daemon.Connector
-			topoFile := envFlags.Topology()
-			if topoFile != "" {
-				// Use local daemon with topology file
-				log.Debug("Using local daemon with topology file", "topology", topoFile)
-				topo, err := daemon.LoadTopologyFromFile(traceCtx, topoFile)
-				if err != nil {
-					return serrors.Wrap("loading topology", err)
-				}
-				standalone, err := daemon.NewStandaloneService(traceCtx, topo)
-				if err != nil {
-					return serrors.Wrap("creating local daemon", err)
-				}
-				sd = standalone
-			} else {
-				// Connect to remote daemon
-				daemonAddr := envFlags.Daemon()
-				log.Debug("Connecting to SCION daemon", "daemon", daemonAddr)
-
-				ctx, cancelF := context.WithTimeout(traceCtx, time.Second)
-				defer cancelF()
-				remoteSd, err := daemon.NewService(daemonAddr).Connect(ctx)
-				if err != nil {
-					return serrors.Wrap("connecting to SCION Daemon", err)
-				}
-				sd = remoteSd
+			sd, err := daemon.DefaultConnector(traceCtx, daemon.WithDaemon(envFlags.Daemon()))
+			if err != nil {
+				return serrors.Wrap("getting daemon connector", err)
 			}
 
 			defer func(sd daemon.Connector) {
@@ -121,18 +97,24 @@ case, the host could have multiple SCION addresses.
 
 			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
-			return enc.Encode(map[string][]addrInfo{
-				"addresses": {{
-					IA:      info.IA,
-					IP:      localIP,
-					Address: address,
-				}},
-			})
+			return enc.Encode(
+				map[string][]addrInfo{
+					"addresses": {
+						{
+							IA:      info.IA,
+							IP:      localIP,
+							Address: address,
+						},
+					},
+				},
+			)
 		},
 	}
 	envFlags.Register(cmd.Flags())
-	cmd.Flags().BoolVar(&flags.json, "json", false,
-		"Write the output as machine readable json")
+	cmd.Flags().BoolVar(
+		&flags.json, "json", false,
+		"Write the output as machine readable json",
+	)
 
 	return cmd
 }

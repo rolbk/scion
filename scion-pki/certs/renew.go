@@ -139,7 +139,8 @@ func newRenewCmd(pather command.Pather) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "renew [flags] <chain-file> <key-file>",
 		Short: "Renew an AS certificate",
-		Example: fmt.Sprintf(`  %[1]s renew --trc ISD1-B1-S1.trc --backup cp-as.pem cp-as.key
+		Example: fmt.Sprintf(
+			`  %[1]s renew --trc ISD1-B1-S1.trc --backup cp-as.pem cp-as.key
   %[1]s renew --trc ISD1-B1-S1.trc,ISD1-B1-S2.trc --force cp-as.pem cp-as.key
   %[1]s renew --trc ISD1-B1-S1.trc --reuse-key --out cp-as.new.pem cp-as.pem cp-as.key
   %[1]s renew --trc ISD1-B1-S1.trc --backup --expires-in 56h cp-as.pem cp-as.key
@@ -147,7 +148,8 @@ func newRenewCmd(pather command.Pather) *cobra.Command {
   %[1]s renew --trc ISD1-B1-S1.trc --backup --ca 1-ff00:0:110,1-ff00:0:120 cp-as.pem cp-as.key
   %[1]s renew --trc ISD1-B1-S1.trc --backup \
   	--remote 1-ff00:0:110,10.0.0.3 --remote 1-ff00:0:120,172.30.200.2 cp-as.pem cp-as.key
-`, pather.CommandPath()),
+`, pather.CommandPath(),
+		),
 		Long: `'renew' requests a renewed AS certificate from a remote CA control service.
 
 The provided <chain-file> and <key-file> are used to sign the CSR. They must be
@@ -240,7 +242,8 @@ The template is expressed in JSON. A valid example::
 
 			opts := []file.Option{file.WithForce(flags.force)}
 			if flags.backup {
-				opts = append(opts,
+				opts = append(
+					opts,
 					file.WithBackup(time.Now().Local().Format("2006-01-02-15-04-05")),
 				)
 			}
@@ -263,7 +266,8 @@ The template is expressed in JSON. A valid example::
 			}
 			daemonAddr := envFlags.Daemon()
 			localIP := net.IP(envFlags.Local().AsSlice())
-			log.Debug("Resolved SCION environment flags",
+			log.Debug(
+				"Resolved SCION environment flags",
 				"daemon", daemonAddr,
 				"local", localIP,
 			)
@@ -271,7 +275,7 @@ The template is expressed in JSON. A valid example::
 			// Setup basic state.
 			daemonCtx, daemonCancel := context.WithTimeout(ctx, time.Second)
 			defer daemonCancel()
-			sd, err := daemon.NewService(daemonAddr).Connect(daemonCtx)
+			sd, err := daemon.DefaultConnector(ctx, daemon.WithDaemon(envFlags.Daemon()))
 			if err != nil {
 				return serrors.Wrap("connecting to SCION Daemon", err)
 			}
@@ -368,10 +372,12 @@ The template is expressed in JSON. A valid example::
 				return serrors.Wrap("creating CSR", err)
 			}
 			if flags.outCSR != "" {
-				pemCSR := pem.EncodeToMemory(&pem.Block{
-					Type:  "CERTIFICATE REQUEST",
-					Bytes: csr,
-				})
+				pemCSR := pem.EncodeToMemory(
+					&pem.Block{
+						Type:  "CERTIFICATE REQUEST",
+						Bytes: csr,
+					},
+				)
 				err = file.WriteFile(flags.outCSR, pemCSR, 0o666, opts...)
 				if err != nil {
 					// The CSR is not important, carry on with execution.
@@ -408,10 +414,12 @@ The template is expressed in JSON. A valid example::
 				if req.CmsSignedRequest == nil {
 					return serrors.New("cannot write request to file: no request created")
 				}
-				pemReq := pem.EncodeToMemory(&pem.Block{
-					Type:  "CMS",
-					Bytes: req.CmsSignedRequest,
-				})
+				pemReq := pem.EncodeToMemory(
+					&pem.Block{
+						Type:  "CMS",
+						Bytes: req.CmsSignedRequest,
+					},
+				)
 				err = file.WriteFile(flags.outCMS, pemReq, 0o666, opts...)
 				if err != nil {
 					// The CMS request is not important, carry on with execution.
@@ -433,10 +441,14 @@ The template is expressed in JSON. A valid example::
 						path.WithColorScheme(path.DefaultColorScheme(flags.noColor)),
 					}
 					if !flags.noProbe {
-						pathOpts = append(pathOpts, path.WithProbing(&path.ProbeConfig{
-							LocalIA: info.IA,
-							LocalIP: localIP,
-						}))
+						pathOpts = append(
+							pathOpts, path.WithProbing(
+								&path.ProbeConfig{
+									LocalIA: info.IA,
+									LocalIP: localIP,
+								},
+							),
+						)
 					}
 					return pathOpts
 				},
@@ -542,62 +554,79 @@ The template is expressed in JSON. A valid example::
 	}
 
 	envFlags.Register(cmd.Flags())
-	cmd.Flags().StringVar(&flags.out, "out", "",
+	cmd.Flags().StringVar(
+		&flags.out, "out", "",
 		"The path to write the renewed certificate chain",
 	)
-	cmd.Flags().StringVar(&flags.outKey, "out-key", "",
+	cmd.Flags().StringVar(
+		&flags.outKey, "out-key", "",
 		"The path to write the fresh private key",
 	)
-	cmd.Flags().StringVar(&flags.outCSR, "out-csr", "",
+	cmd.Flags().StringVar(
+		&flags.outCSR, "out-csr", "",
 		"The path to write the CSR sent to the CA",
 	)
-	cmd.Flags().StringVar(&flags.outCMS, "out-cms", "",
+	cmd.Flags().StringVar(
+		&flags.outCMS, "out-cms", "",
 		"The path to write the CMS signed CSR sent to the CA",
 	)
-	cmd.Flags().StringVar(&flags.subject, "subject", "",
+	cmd.Flags().StringVar(
+		&flags.subject, "subject", "",
 		"The path to the custom subject for the CSR",
 	)
-	cmd.Flags().StringVar(&flags.commonName, "common-name", "",
+	cmd.Flags().StringVar(
+		&flags.commonName, "common-name", "",
 		"The common name that replaces the common name in the subject template",
 	)
-	cmd.Flags().StringSliceVar(&flags.trcFiles, "trc", []string{},
+	cmd.Flags().StringSliceVar(
+		&flags.trcFiles, "trc", []string{},
 		"Comma-separated list of trusted TRC files or glob patterns. "+
 			"If more than two TRCs are specified,\n only up to two active TRCs "+
 			"with the highest Base version are used (required)",
 	)
-	cmd.Flags().BoolVar(&flags.reuseKey, "reuse-key", false,
+	cmd.Flags().BoolVar(
+		&flags.reuseKey, "reuse-key", false,
 		"Reuse the provided private key instead of creating a fresh private key",
 	)
-	cmd.Flags().StringSliceVar(&flags.ca, "ca", nil,
+	cmd.Flags().StringSliceVar(
+		&flags.ca, "ca", nil,
 		"Comma-separated list of ISD-AS identifiers of target CAs.\n"+
 			"The CAs are tried in order until success or all of them failed.\n"+
 			"--ca is mutually exclusive with --remote",
 	)
-	cmd.Flags().StringArrayVar(&flags.remotes, "remote", nil,
+	cmd.Flags().StringArrayVar(
+		&flags.remotes, "remote", nil,
 		"The remote CA address to use for certificate renewal.\n"+
 			"The address is of the form <ISD-AS>,<IP>. --remote can be specified multiple times\n"+
 			"and all specified remotes are tried in order until success or all of them failed.\n"+
 			"--remote is mutually exclusive with --ca.",
 	)
-	cmd.Flags().StringVar(&flags.curve, "curve", "P-256",
+	cmd.Flags().StringVar(
+		&flags.curve, "curve", "P-256",
 		"The elliptic curve to use (P-256|P-384|P-521)",
 	)
-	cmd.Flags().StringVar(&flags.expiresIn, "expires-in", "",
+	cmd.Flags().StringVar(
+		&flags.expiresIn, "expires-in", "",
 		"Remaining time threshold for renewal",
 	)
-	cmd.Flags().BoolVar(&flags.force, "force", false,
+	cmd.Flags().BoolVar(
+		&flags.force, "force", false,
 		"Force overwriting existing files",
 	)
-	cmd.Flags().BoolVar(&flags.backup, "backup", false,
+	cmd.Flags().BoolVar(
+		&flags.backup, "backup", false,
 		"Back up existing files before overwriting",
 	)
-	cmd.Flags().DurationVar(&flags.timeout, "timeout", 10*time.Second,
+	cmd.Flags().DurationVar(
+		&flags.timeout, "timeout", 10*time.Second,
 		"The timeout for the renewal request per CA",
 	)
-	cmd.Flags().StringSliceVar(&flags.features, "features", nil,
+	cmd.Flags().StringSliceVar(
+		&flags.features, "features", nil,
 		fmt.Sprintf("enable development features (%v)", feature.String(&Features{}, "|")),
 	)
-	cmd.Flags().StringVar(&flags.tracer, "tracing.agent", "",
+	cmd.Flags().StringVar(
+		&flags.tracer, "tracing.agent", "",
 		"The tracing agent address",
 	)
 	cmd.Flags().StringVar(&flags.logLevel, "log.level", "", app.LogLevelUsage)
@@ -863,11 +892,14 @@ func loadChain(trcs []*cppki.TRC, file string) ([]*x509.Certificate, error) {
 	if err := cppki.VerifyChain(chain, cppki.VerifyOptions{TRC: trcs}); err != nil {
 		if maybeMissingTRCInGrace(trcs) {
 			fmt.Println("Verification failed, but current time still in Grace Period of latest TRC")
-			fmt.Printf("Try to verify with the predecessor TRC: (Base = %d, Serial = %d)\n",
-				trcs[0].ID.Base, trcs[0].ID.Serial-1)
+			fmt.Printf(
+				"Try to verify with the predecessor TRC: (Base = %d, Serial = %d)\n",
+				trcs[0].ID.Base, trcs[0].ID.Serial-1,
+			)
 		}
 		return nil, serrors.Wrap(
-			"verification of transport cert failed with provided TRC", err)
+			"verification of transport cert failed with provided TRC", err,
+		)
 
 	}
 	return chain, nil

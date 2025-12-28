@@ -8,6 +8,7 @@ go_library(
         "connector.go",
         "connector_metrics.go",
         "daemon.go",
+        "default.go",
         "grpc.go",
         "grpc_metrics.go",
         "standalone.go",

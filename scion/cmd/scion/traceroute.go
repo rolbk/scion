@@ -76,12 +76,14 @@ func newTraceroute(pather CommandPather) *cobra.Command {
 		Aliases: []string{"tr"},
 		Short:   "Trace the SCION route to a remote SCION AS using SCMP traceroute packets",
 		Example: fmt.Sprintf("  %[1]s traceroute 1-ff00:0:110,10.0.0.1", pather.CommandPath()),
-		Long: fmt.Sprintf(`'traceroute' traces the SCION path to a remote AS using
+		Long: fmt.Sprintf(
+			`'traceroute' traces the SCION path to a remote AS using
 SCMP traceroute packets.
 
 If any packet is dropped, traceroute will exit with code 1.
 On other errors, traceroute will exit with code 2.
-%s`, app.SequenceHelp),
+%s`, app.SequenceHelp,
+		),
 
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -112,33 +114,9 @@ On other errors, traceroute will exit with code 2.
 			span.SetTag("dst.host", remote.Host.IP())
 			defer span.Finish()
 
-			// Check if we should use a local daemon or connect to a remote one
-			var sd daemon.Connector
-			topoFile := envFlags.Topology()
-			if topoFile != "" {
-				// Use local daemon with topology file
-				log.Debug("Using local daemon with topology file", "topology", topoFile)
-				topo, err := daemon.LoadTopologyFromFile(traceCtx, topoFile)
-				if err != nil {
-					return serrors.Wrap("loading topology", err)
-				}
-				standalone, err := daemon.NewStandaloneService(traceCtx, topo)
-				if err != nil {
-					return serrors.Wrap("creating local daemon", err)
-				}
-				sd = standalone
-			} else {
-				// Connect to remote daemon
-				daemonAddr := envFlags.Daemon()
-				log.Debug("Connecting to SCION daemon", "daemon", daemonAddr)
-
-				ctx, cancelF := context.WithTimeout(traceCtx, time.Second)
-				defer cancelF()
-				remoteSd, err := daemon.NewService(daemonAddr).Connect(ctx)
-				if err != nil {
-					return serrors.Wrap("connecting to SCION Daemon", err)
-				}
-				sd = remoteSd
+			sd, err := daemon.DefaultConnector(traceCtx, daemon.WithDaemon(envFlags.Daemon()))
+			if err != nil {
+				return serrors.Wrap("getting daemon connector", err)
 			}
 
 			defer func(sd daemon.Connector) {
@@ -156,7 +134,8 @@ On other errors, traceroute will exit with code 2.
 				return serrors.Wrap("loading topology", err)
 			}
 			span.SetTag("src.isd_as", topo.LocalIA)
-			path, err := path.Choose(traceCtx, sd, remote.IA,
+			path, err := path.Choose(
+				traceCtx, sd, remote.IA,
 				path.WithInteractive(flags.interactive),
 				path.WithRefresh(flags.refresh),
 				path.WithSequence(flags.sequence),
@@ -224,8 +203,10 @@ On other errors, traceroute will exit with code 2.
 				ErrHandler:   func(err error) { fmt.Fprintf(os.Stderr, "ERROR: %s\n", err) },
 				UpdateHandler: func(u traceroute.Update) {
 					updates = append(updates, u)
-					printf("%d %s %s\n", u.Index, fmtRemote(u.Remote, u.Interface),
-						fmtRTTs(u.RTTs, flags.timeout))
+					printf(
+						"%d %s %s\n", u.Index, fmtRemote(u.Remote, u.Interface),
+						fmtRTTs(u.RTTs, flags.timeout),
+					)
 				},
 				EPIC: flags.epic,
 			}
@@ -266,8 +247,10 @@ On other errors, traceroute will exit with code 2.
 	cmd.Flags().StringVar(&flags.logLevel, "log.level", "", app.LogLevelUsage)
 	cmd.Flags().StringVar(&flags.tracer, "tracing.agent", "", "Tracing agent address")
 	cmd.Flags().BoolVar(&flags.epic, "epic", false, "Enable EPIC.")
-	cmd.Flags().StringVar(&flags.format, "format", "human",
-		"Specify the output format (human|json|yaml)")
+	cmd.Flags().StringVar(
+		&flags.format, "format", "human",
+		"Specify the output format (human|json|yaml)",
+	)
 	return cmd
 }
 
