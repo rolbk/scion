@@ -143,8 +143,11 @@ On other errors, ping will exit with code 2.
 			if topoFile != "" {
 				// Use local daemon with topology file
 				log.Debug("Using local daemon with topology file", "topology", topoFile)
-				standalone, err := daemon.NewStandaloneService(traceCtx,
-					daemon.StandaloneOptions{TopoFile: topoFile})
+				topo, err := daemon.LoadTopologyFromFile(traceCtx, topoFile)
+				if err != nil {
+					return serrors.Wrap("loading topology", err)
+				}
+				standalone, err := daemon.NewStandaloneService(traceCtx, topo)
 				if err != nil {
 					return serrors.Wrap("creating local daemon", err)
 				}

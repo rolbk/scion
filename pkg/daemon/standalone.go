@@ -46,25 +46,100 @@ import (
 	trustmetrics "github.com/scionproto/scion/private/trust/metrics"
 )
 
-type StandaloneOptions struct {
-	// either TopoFile or Topo must be set
-	TopoFile string
-	Topo     Topology
+// StandaloneOption is a functional option for NewStandaloneService.
+type StandaloneOption func(*standaloneOptions)
 
-	// global configuration directory, used for trust engine setup
-	ConfigDir string
+// DefaultConfigDir is the default configuration directory for SCION.
+const DefaultConfigDir = "/etc/scion"
 
-	// disable segment verification -- SHOULD NOT USE IN PRODUCTION!
-	DisableSegVerification bool
-	EnablePeriodicCleanup  bool
-	EnableMetrics          bool
+type standaloneOptions struct {
+	configDir              string
+	disableSegVerification bool
+	enablePeriodicCleanup  bool
+	enableMetrics          bool
 }
 
-// wrapper for the standalone service to keep track of background tasks and storages to be closed
+// WithConfigDir sets the configuration directory for trust material.
+// Defaults to /etc/scion.
+func WithConfigDir(dir string) StandaloneOption {
+	return func(o *standaloneOptions) {
+		o.configDir = dir
+	}
+}
+
+// WithDisableSegVerification disables segment verification.
+// WARNING: This should NOT be used in production!
+func WithDisableSegVerification() StandaloneOption {
+	return func(o *standaloneOptions) {
+		o.disableSegVerification = true
+	}
+}
+
+// WithPeriodicCleanup enables periodic cleanup of path database and revocation cache.
+func WithPeriodicCleanup() StandaloneOption {
+	return func(o *standaloneOptions) {
+		o.enablePeriodicCleanup = true
+	}
+}
+
+// WithMetrics enables metrics collection for the standalone daemon.
+func WithMetrics() StandaloneOption {
+	return func(o *standaloneOptions) {
+		o.enableMetrics = true
+	}
+}
+
+// LoadTopologyFromFile loads a topology from a file and starts a background loader.
+// The returned Topology can be passed to NewStandaloneService.
+// The caller should ensure the context is cancelled when the topology is no longer needed.
+func LoadTopologyFromFile(ctx context.Context, topoFile string) (Topology, error) {
+	loader, err := topology.NewLoader(
+		topology.LoaderCfg{
+			File:      topoFile,
+			Reload:    nil,
+			Validator: &topology.DefaultValidator{},
+			Metrics:   newLoaderMetrics(),
+		},
+	)
+	if err != nil {
+		return nil, serrors.Wrap("creating topology loader", err)
+	}
+
+	go func() {
+		defer log.HandlePanic()
+		_ = loader.Run(ctx)
+	}()
+
+	return loader, nil
+}
+
+// newLoaderMetrics creates metrics for the topology loader.
+func newLoaderMetrics() topology.LoaderMetrics {
+	updates := prom.NewCounterVec(
+		"", "",
+		"topology_updates_total",
+		"The total number of updates.",
+		[]string{prom.LabelResult},
+	)
+	return topology.LoaderMetrics{
+		ValidationErrors: metrics.NewPromCounter(updates).With(prom.LabelResult, "err_validate"),
+		ReadErrors:       metrics.NewPromCounter(updates).With(prom.LabelResult, "err_read"),
+		LastUpdate: metrics.NewPromGauge(
+			prom.NewGaugeVec(
+				"", "",
+				"topology_last_update_time",
+				"Timestamp of the last successful update.",
+				[]string{},
+			),
+		),
+		Updates: metrics.NewPromCounter(updates).With(prom.LabelResult, prom.Success),
+	}
+}
+
+// standaloneConnector wraps a Connector to track background tasks and storages.
 type standaloneConnector struct {
 	Connector
 
-	// background tasks and storages to be closed on Close()
 	pathDBCleaner *periodic.Runner
 	pathDB        storage.PathDB
 	revCache      revcache.RevCache
@@ -74,54 +149,31 @@ type standaloneConnector struct {
 }
 
 // NewStandaloneService creates a daemon Connector that runs locally without a daemon process.
-// It accepts a topology either as loader or as file path, and initializes all necessary
-// components for path lookups and AS information queries.
+// It requires a Topology (use LoadTopology to create one from a file) and accepts
+// functional options for configuration.
 //
 // The returned Connector can be used directly by SCION applications instead of connecting
 // to a daemon via gRPC.
 //
-// Note: This function starts background tasks (cleaner, TRC loader) that should be stopped
-// when done. The caller should handle cleanup appropriately, typically via context cancellation.
+// Example:
+//
+//	topo, err := daemon.LoadTopology(ctx, "/path/to/topology.json")
+//	if err != nil { ... }
+//	conn, err := daemon.NewStandaloneService(ctx, topo,
+//	    daemon.WithConfigDir("/path/to/config"),
+//	    daemon.WithMetrics(),
+//	)
 func NewStandaloneService(
-	ctx context.Context, options StandaloneOptions,
+	ctx context.Context, topo Topology, opts ...StandaloneOption,
 ) (Connector, error) {
-	if options.Topo == nil && options.TopoFile == "" {
-		return nil, serrors.New("either topology or topology file path must be provided")
+	options := &standaloneOptions{
+		configDir: DefaultConfigDir,
 	}
-	if options.ConfigDir == "" {
-		if options.TopoFile != "" {
-			options.ConfigDir = filepath.Dir(options.TopoFile)
-		} else {
-			return nil, serrors.New("configuration directory must be provided")
-		}
+	for _, opt := range opts {
+		opt(options)
 	}
 
-	g, errCtx := errgroup.WithContext(ctx)
-	topo := options.Topo
-
-	if topo == nil {
-		// Load topology
-		var err error
-		topoLoader, err := topology.NewLoader(
-			topology.LoaderCfg{
-				File:      options.TopoFile,
-				Reload:    nil, // No reload for local daemon
-				Validator: &topology.DefaultValidator{},
-				Metrics:   newLoaderMetrics(),
-			},
-		)
-
-		if err != nil {
-			return nil, serrors.Wrap("creating topology loader", err)
-		}
-		g.Go(
-			func() error {
-				defer log.HandlePanic()
-				return topoLoader.Run(errCtx)
-			},
-		)
-		topo = topoLoader
-	}
+	_, errCtx := errgroup.WithContext(ctx)
 
 	// Create dialer for control service
 	dialer := &grpc.TCPDialer{
@@ -157,7 +209,7 @@ func NewStandaloneService(
 	// Start periodic cleaners if enabled
 	var cleaner *periodic.Runner
 	var rcCleaner *periodic.Runner
-	if options.EnablePeriodicCleanup {
+	if options.enablePeriodicCleanup {
 		//nolint:staticcheck // SA1019: fix later (https://github.com/scionproto/scion/issues/4776).
 		cleaner = periodic.Start(
 			pathdb.NewCleaner(pathDB, "sd_segments"),
@@ -177,7 +229,7 @@ func NewStandaloneService(
 	var trcLoaderTask *periodic.Runner
 
 	// Create trust engine unless verification is disabled
-	if options.DisableSegVerification {
+	if options.disableSegVerification {
 		log.Info("SEGMENT VERIFICATION DISABLED -- SHOULD NOT USE IN PRODUCTION!")
 		inspector = nil // avoids requiring trust material
 		verifier = segverifier.AcceptAll{}
@@ -199,7 +251,7 @@ func NewStandaloneService(
 			},
 		)
 		engine, err := TrustEngine(
-			errCtx, options.ConfigDir, topo.IA(), trustDB, dialer,
+			errCtx, options.configDir, topo.IA(), trustDB, dialer,
 		)
 		if err != nil {
 			return nil, serrors.Wrap("creating trust engine", err)
@@ -211,7 +263,7 @@ func NewStandaloneService(
 			MaxCacheExpiration: time.Minute,
 		}
 		trcLoader := trust.TRCLoader{
-			Dir: filepath.Join(options.ConfigDir, "certs"),
+			Dir: filepath.Join(options.configDir, "certs"),
 			DB:  trustDB,
 		}
 		//nolint:staticcheck // SA1019: fix later (https://github.com/scionproto/scion/issues/4776).
@@ -269,7 +321,7 @@ func NewStandaloneService(
 		DRKeyClient: nil, // DRKey not supported in standalone daemon
 	}
 
-	if options.EnableMetrics {
+	if options.enableMetrics {
 		connector = WrapWithMetrics(connector, "local_sd")
 	}
 
@@ -311,27 +363,4 @@ func (s standaloneConnector) Close() error {
 		s.trcLoaderTask.Stop()
 	}
 	return err
-}
-
-// newLoaderMetrics creates metrics for the topology loader.
-func newLoaderMetrics() topology.LoaderMetrics {
-	updates := prom.NewCounterVec(
-		"", "",
-		"topology_updates_total",
-		"The total number of updates.",
-		[]string{prom.LabelResult},
-	)
-	return topology.LoaderMetrics{
-		ValidationErrors: metrics.NewPromCounter(updates).With(prom.LabelResult, "err_validate"),
-		ReadErrors:       metrics.NewPromCounter(updates).With(prom.LabelResult, "err_read"),
-		LastUpdate: metrics.NewPromGauge(
-			prom.NewGaugeVec(
-				"", "",
-				"topology_last_update_time",
-				"Timestamp of the last successful update.",
-				[]string{},
-			),
-		),
-		Updates: metrics.NewPromCounter(updates).With(prom.LabelResult, prom.Success),
-	}
 }
