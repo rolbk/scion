@@ -81,6 +81,7 @@ type StandaloneOptions struct {
 	// global configuration directory, used for trust engine setup
 	ConfigDir string
 
+	// disable segment verification -- SHOULD NOT USE IN PRODUCTION!
 	DisableSegVerification bool
 	EnablePeriodicCleanup  bool
 	EnableMetrics          bool
@@ -200,12 +201,12 @@ func NewStandaloneService(
 	var verifier segverifier.Verifier
 	var trcLoaderTask *periodic.Runner
 
+	// Create trust engine unless verification is disabled
 	if options.DisableSegVerification {
-		// do not create trust engine to avoid requiring trust material
-		inspector = nil
+		log.Info("SEGMENT VERIFICATION DISABLED -- SHOULD NOT USE IN PRODUCTION!")
+		inspector = nil // avoids requiring trust material
 		verifier = acceptAllVerifier{}
 	} else {
-		// Create trust engine unless verification is disabled
 		trustDB, err = storage.NewInMemoryTrustStorage()
 		if err != nil {
 			return nil, serrors.Wrap("initializing trust database", err)
