@@ -38,7 +38,7 @@ import (
 )
 
 // Daemon implements the Connector interface with the core business logic.
-type Daemon struct {
+type DaemonEngine struct {
 	IA          addr.IA
 	MTU         uint16
 	Topology    Topology
@@ -51,18 +51,18 @@ type Daemon struct {
 }
 
 // LocalIA returns the local ISD-AS number.
-func (c *Daemon) LocalIA(ctx context.Context) (addr.IA, error) {
+func (c *DaemonEngine) LocalIA(ctx context.Context) (addr.IA, error) {
 	return c.IA, nil
 }
 
 // PortRange returns the beginning and end of the SCION/UDP endhost port range.
-func (c *Daemon) PortRange(ctx context.Context) (uint16, uint16, error) {
+func (c *DaemonEngine) PortRange(ctx context.Context) (uint16, uint16, error) {
 	startPort, endPort := c.Topology.PortRange()
 	return startPort, endPort, nil
 }
 
 // Interfaces returns the map of interface identifiers to underlay internal addresses.
-func (c *Daemon) Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, error) {
+func (c *DaemonEngine) Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, error) {
 	result := make(map[uint16]netip.AddrPort)
 	for _, ifID := range c.Topology.IfIDs() {
 		nextHop := c.Topology.UnderlayNextHop(ifID)
@@ -79,7 +79,7 @@ func (c *Daemon) Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, err
 }
 
 // Paths requests a set of end-to-end paths between source and destination.
-func (c *Daemon) Paths(
+func (c *DaemonEngine) Paths(
 	ctx context.Context, dst, src addr.IA,
 	f PathReqFlags,
 ) ([]snet.Path, error) {
@@ -105,7 +105,7 @@ func (c *Daemon) Paths(
 	return paths, nil
 }
 
-func (c *Daemon) fetchPaths(
+func (c *DaemonEngine) fetchPaths(
 	ctx context.Context,
 	group *singleflight.Group,
 	src, dst addr.IA,
@@ -123,7 +123,7 @@ func (c *Daemon) fetchPaths(
 	return paths, err
 }
 
-func (c *Daemon) backgroundPaths(
+func (c *DaemonEngine) backgroundPaths(
 	origCtx context.Context, src,
 	dst addr.IA, refresh bool,
 ) {
@@ -157,7 +157,7 @@ func (c *Daemon) backgroundPaths(
 }
 
 // ASInfo requests information about AS ia.
-func (c *Daemon) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
+func (c *DaemonEngine) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
 	if ia.IsZero() {
 		ia = c.IA
 	}
@@ -174,7 +174,7 @@ func (c *Daemon) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
 }
 
 // SVCInfo requests information about infrastructure services.
-func (c *Daemon) SVCInfo(
+func (c *DaemonEngine) SVCInfo(
 	ctx context.Context,
 	svcTypes []addr.SVC,
 ) (map[addr.SVC][]string, error) {
@@ -202,7 +202,7 @@ func (c *Daemon) SVCInfo(
 }
 
 // RevNotification sends a RevocationInfo message to the daemon.
-func (c *Daemon) RevNotification(ctx context.Context, revInfo *path_mgmt.RevInfo) error {
+func (c *DaemonEngine) RevNotification(ctx context.Context, revInfo *path_mgmt.RevInfo) error {
 	_, err := c.RevCache.Insert(ctx, revInfo)
 	if err != nil {
 		log.FromCtx(ctx).Error("Inserting revocation", "err", err, "revInfo", revInfo)
@@ -215,7 +215,7 @@ func (c *Daemon) RevNotification(ctx context.Context, revInfo *path_mgmt.RevInfo
 }
 
 // DRKeyGetASHostKey requests a AS-Host Key.
-func (c *Daemon) DRKeyGetASHostKey(
+func (c *DaemonEngine) DRKeyGetASHostKey(
 	ctx context.Context,
 	meta drkey.ASHostMeta,
 ) (drkey.ASHostKey, error) {
@@ -232,7 +232,7 @@ func (c *Daemon) DRKeyGetASHostKey(
 }
 
 // DRKeyGetHostASKey requests a Host-AS Key.
-func (c *Daemon) DRKeyGetHostASKey(
+func (c *DaemonEngine) DRKeyGetHostASKey(
 	ctx context.Context,
 	meta drkey.HostASMeta,
 ) (drkey.HostASKey, error) {
@@ -249,7 +249,7 @@ func (c *Daemon) DRKeyGetHostASKey(
 }
 
 // DRKeyGetHostHostKey requests a Host-Host Key.
-func (c *Daemon) DRKeyGetHostHostKey(
+func (c *DaemonEngine) DRKeyGetHostHostKey(
 	ctx context.Context,
 	meta drkey.HostHostMeta,
 ) (drkey.HostHostKey, error) {
@@ -266,6 +266,6 @@ func (c *Daemon) DRKeyGetHostHostKey(
 }
 
 // Close shuts down the connector.
-func (c *Daemon) Close() error {
+func (c *DaemonEngine) Close() error {
 	return nil
 }
