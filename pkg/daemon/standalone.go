@@ -314,7 +314,7 @@ func NewStandaloneService(
 	)
 
 	// Create and return the connector
-	var connector Connector = &Daemon{
+	var connector Connector = &DaemonEngine{
 		IA:          topo.IA(),
 		MTU:         topo.MTU(),
 		Topology:    topo,

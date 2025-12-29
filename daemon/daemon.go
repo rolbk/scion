@@ -57,7 +57,7 @@ type ServerConfig struct {
 func NewServer(cfg ServerConfig) *servers.DaemonServer {
 	return &servers.DaemonServer{
 		Connector: daemon.WrapWithMetrics(
-			&daemon.Daemon{
+			&daemon.DaemonEngine{
 				IA:  cfg.IA,
 				MTU: cfg.MTU,
 				// TODO(JordiSubira): This will be changed in the future to fetch
@@ -68,7 +68,8 @@ func NewServer(cfg ServerConfig) *servers.DaemonServer {
 				RevCache:    cfg.RevCache,
 				DRKeyClient: cfg.DRKeyClient,
 			},
-			"sd"),
+			"sd",
+		),
 		ASInspector: cfg.Engine.Inspector,
 	}
 }
