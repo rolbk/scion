@@ -1,4 +1,4 @@
-// Copyright 2025 ETH Zurich
+// Copyright 2020 Anapaya Systems
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,94 +18,94 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"slices"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"golang.org/x/sync/singleflight"
 
-	drkeyengine "github.com/scionproto/scion/daemon/drkey"
+	drkey_daemon "github.com/scionproto/scion/daemon/drkey"
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/daemon/fetcher"
 	"github.com/scionproto/scion/pkg/drkey"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/ctrl/path_mgmt"
+	"github.com/scionproto/scion/pkg/private/ctrl/path_mgmt/proto"
 	"github.com/scionproto/scion/pkg/private/prom"
 	"github.com/scionproto/scion/pkg/private/serrors"
+	"github.com/scionproto/scion/pkg/private/util"
+	"github.com/scionproto/scion/pkg/segment/iface"
 	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/private/revcache"
-	"github.com/scionproto/scion/private/topology"
+	"github.com/scionproto/scion/private/trust"
 )
 
-// Daemon implements the Connector interface with the core business logic.
+// DaemonEngine contains the core daemon logic, independent of the transport layer.
+// It can be used directly by in-process clients or wrapped by the gRPC server.
 type DaemonEngine struct {
 	IA          addr.IA
 	MTU         uint16
 	Topology    Topology
 	Fetcher     fetcher.Fetcher
 	RevCache    revcache.RevCache
-	DRKeyClient *drkeyengine.ClientEngine
+	ASInspector trust.Inspector
+	DRKeyClient *drkey_daemon.ClientEngine
 
 	foregroundPathDedupe singleflight.Group
 	backgroundPathDedupe singleflight.Group
 }
 
 // LocalIA returns the local ISD-AS number.
-func (c *DaemonEngine) LocalIA(ctx context.Context) (addr.IA, error) {
-	return c.IA, nil
+func (e *DaemonEngine) LocalIA(ctx context.Context) (addr.IA, error) {
+	return e.IA, nil
 }
 
-// PortRange returns the beginning and end of the SCION/UDP endhost port range.
-func (c *DaemonEngine) PortRange(ctx context.Context) (uint16, uint16, error) {
-	startPort, endPort := c.Topology.PortRange()
-	return startPort, endPort, nil
+// PortRange returns the dispatched port range.
+func (e *DaemonEngine) PortRange(ctx context.Context) (uint16, uint16, error) {
+	start, end := e.Topology.PortRange()
+	return start, end, nil
 }
 
-// Interfaces returns the map of interface identifiers to underlay internal addresses.
-func (c *DaemonEngine) Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, error) {
+// Interfaces returns the map of interface identifiers to the underlay internal address.
+func (e *DaemonEngine) Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, error) {
 	result := make(map[uint16]netip.AddrPort)
-	for _, ifID := range c.Topology.IfIDs() {
-		nextHop := c.Topology.UnderlayNextHop(ifID)
+	topo := e.Topology
+	for _, ifID := range topo.IfIDs() {
+		nextHop := topo.UnderlayNextHop(ifID)
 		if nextHop == nil {
 			continue
 		}
-		addrPort, err := netip.ParseAddrPort(nextHop.String())
-		if err != nil {
-			continue // Skip interfaces we can't parse
-		}
-		result[ifID] = addrPort
+		result[ifID] = nextHop.AddrPort()
 	}
 	return result, nil
 }
 
-// Paths requests a set of end-to-end paths between source and destination.
-func (c *DaemonEngine) Paths(
-	ctx context.Context, dst, src addr.IA,
-	f PathReqFlags,
+// Paths requests a set of end to end paths between the source and destination.
+func (e *DaemonEngine) Paths(
+	ctx context.Context,
+	dst, src addr.IA,
+	flags PathReqFlags,
 ) ([]snet.Path, error) {
 	if _, ok := ctx.Deadline(); !ok {
 		var cancelF context.CancelFunc
 		ctx, cancelF = context.WithTimeout(ctx, 10*time.Second)
 		defer cancelF()
 	}
-
 	go func() {
 		defer log.HandlePanic()
-		c.backgroundPaths(ctx, src, dst, f.Refresh)
+		e.backgroundPaths(ctx, src, dst, flags.Refresh)
 	}()
-
-	paths, err := c.fetchPaths(ctx, &c.foregroundPathDedupe, src, dst, f.Refresh)
+	paths, err := e.fetchPaths(ctx, &e.foregroundPathDedupe, src, dst, flags.Refresh)
 	if err != nil {
 		log.FromCtx(ctx).Debug(
 			"Fetching paths", "err", err,
-			"src", src, "dst", dst, "refresh", f.Refresh,
+			"src", src, "dst", dst, "refresh", flags.Refresh,
 		)
 		return nil, err
 	}
 	return paths, nil
 }
 
-func (c *DaemonEngine) fetchPaths(
+func (e *DaemonEngine) fetchPaths(
 	ctx context.Context,
 	group *singleflight.Group,
 	src, dst addr.IA,
@@ -114,41 +114,28 @@ func (c *DaemonEngine) fetchPaths(
 	r, err, _ := group.Do(
 		fmt.Sprintf("%s%s%t", src, dst, refresh),
 		func() (any, error) {
-			return c.Fetcher.GetPaths(ctx, src, dst, refresh)
+			return e.Fetcher.GetPaths(ctx, src, dst, refresh)
 		},
 	)
-	// just cast to the correct type, ignore the "ok", since that can only be
-	// false in case of a nil result.
 	paths, _ := r.([]snet.Path)
 	return paths, err
 }
 
-func (c *DaemonEngine) backgroundPaths(
-	origCtx context.Context, src,
-	dst addr.IA, refresh bool,
-) {
+func (e *DaemonEngine) backgroundPaths(origCtx context.Context, src, dst addr.IA, refresh bool) {
 	backgroundTimeout := 5 * time.Second
 	deadline, ok := origCtx.Deadline()
 	if !ok || time.Until(deadline) > backgroundTimeout {
-		// the original context is large enough no need to spin a background fetch.
 		return
 	}
-	// We're not passing origCtx because this is a background fetch that
-	// should continue even in case origCtx is cancelled.
 	ctx, cancelF := context.WithTimeout(context.Background(), backgroundTimeout)
 	defer cancelF()
-
 	var spanOpts []opentracing.StartSpanOption
 	if span := opentracing.SpanFromContext(origCtx); span != nil {
 		spanOpts = append(spanOpts, opentracing.FollowsFrom(span.Context()))
 	}
-	span, ctx := opentracing.StartSpanFromContext(
-		ctx,
-		"fetch.paths.background", spanOpts...,
-	)
+	span, ctx := opentracing.StartSpanFromContext(ctx, "fetch.paths.background", spanOpts...)
 	defer span.Finish()
-	//nolint:contextcheck // false positive.
-	if _, err := c.fetchPaths(ctx, &c.backgroundPathDedupe, src, dst, refresh); err != nil {
+	if _, err := e.fetchPaths(ctx, &e.backgroundPathDedupe, src, dst, refresh); err != nil {
 		log.FromCtx(ctx).Debug(
 			"Error fetching paths (background)", "err", err,
 			"src", src, "dst", dst, "refresh", refresh,
@@ -156,56 +143,46 @@ func (c *DaemonEngine) backgroundPaths(
 	}
 }
 
-// ASInfo requests information about AS ia.
-func (c *DaemonEngine) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
-	if ia.IsZero() {
-		ia = c.IA
+// ASInfo requests information about an AS. The zero IA returns local AS info.
+func (e *DaemonEngine) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
+	reqIA := ia
+	if reqIA.IsZero() {
+		reqIA = e.IA
 	}
-
 	mtu := uint16(0)
-	if ia.Equal(c.IA) {
-		mtu = c.MTU
+	if reqIA.Equal(e.IA) {
+		mtu = e.MTU
 	}
-
 	return ASInfo{
-		IA:  ia,
+		IA:  reqIA,
 		MTU: mtu,
 	}, nil
 }
 
-// SVCInfo requests information about infrastructure services.
-func (c *DaemonEngine) SVCInfo(
-	ctx context.Context,
-	svcTypes []addr.SVC,
-) (map[addr.SVC][]string, error) {
-	result := make(map[addr.SVC][]string)
-
-	// For now, we only support Control services.
-	if len(svcTypes) > 0 && !slices.Contains(svcTypes, addr.SVC(topology.Control)) {
-		return nil, serrors.New(
-			"requested SVC type not supported",
-			"requested", svcTypes,
-		)
+// SVCInfo requests information about addresses and ports of infrastructure services.
+func (e *DaemonEngine) SVCInfo(ctx context.Context) ([]string, error) {
+	var uris []string
+	for _, h := range e.Topology.ControlServiceAddresses() {
+		uris = append(uris, h.String())
 	}
-
-	var services []string
-	for _, h := range c.Topology.ControlServiceAddresses() {
-		// TODO(lukedirtwalker): build actual URI after it's defined (anapapaya/scion#3587)
-		services = append(services, h.String())
-	}
-
-	if len(services) > 0 {
-		result[addr.SVC(topology.Control)] = services
-	}
-
-	return result, nil
+	return uris, nil
 }
 
-// RevNotification sends a RevocationInfo message to the daemon.
-func (c *DaemonEngine) RevNotification(ctx context.Context, revInfo *path_mgmt.RevInfo) error {
-	_, err := c.RevCache.Insert(ctx, revInfo)
+// NotifyInterfaceDown notifies about an interface that is down.
+func (e *DaemonEngine) NotifyInterfaceDown(ctx context.Context, ia addr.IA, ifID uint64) error {
+	revInfo := &path_mgmt.RevInfo{
+		RawIsdas:     ia,
+		IfID:         iface.ID(ifID),
+		LinkType:     proto.LinkType_core,
+		RawTTL:       10,
+		RawTimestamp: util.TimeToSecs(time.Now()),
+	}
+	_, err := e.RevCache.Insert(ctx, revInfo)
 	if err != nil {
-		log.FromCtx(ctx).Error("Inserting revocation", "err", err, "revInfo", revInfo)
+		log.FromCtx(ctx).Error(
+			"Inserting revocation", "err", err,
+			"isd_as", ia, "if_id", ifID,
+		)
 		return metricsError{
 			err:    serrors.Wrap("inserting revocation", err),
 			result: prom.ErrDB,
@@ -214,58 +191,35 @@ func (c *DaemonEngine) RevNotification(ctx context.Context, revInfo *path_mgmt.R
 	return nil
 }
 
-// DRKeyGetASHostKey requests a AS-Host Key.
-func (c *DaemonEngine) DRKeyGetASHostKey(
+// DRKeyGetASHostKey requests an AS-Host Key.
+func (e *DaemonEngine) DRKeyGetASHostKey(
 	ctx context.Context,
 	meta drkey.ASHostMeta,
 ) (drkey.ASHostKey, error) {
-	if c.DRKeyClient == nil {
+	if e.DRKeyClient == nil {
 		return drkey.ASHostKey{}, serrors.New("DRKey is not available")
 	}
-
-	key, err := c.DRKeyClient.GetASHostKey(ctx, meta)
-	if err != nil {
-		return drkey.ASHostKey{}, serrors.Wrap("getting AS-Host from client store", err)
-	}
-
-	return key, nil
+	return e.DRKeyClient.GetASHostKey(ctx, meta)
 }
 
 // DRKeyGetHostASKey requests a Host-AS Key.
-func (c *DaemonEngine) DRKeyGetHostASKey(
+func (e *DaemonEngine) DRKeyGetHostASKey(
 	ctx context.Context,
 	meta drkey.HostASMeta,
 ) (drkey.HostASKey, error) {
-	if c.DRKeyClient == nil {
+	if e.DRKeyClient == nil {
 		return drkey.HostASKey{}, serrors.New("DRKey is not available")
 	}
-
-	key, err := c.DRKeyClient.GetHostASKey(ctx, meta)
-	if err != nil {
-		return drkey.HostASKey{}, serrors.Wrap("getting Host-AS from client store", err)
-	}
-
-	return key, nil
+	return e.DRKeyClient.GetHostASKey(ctx, meta)
 }
 
 // DRKeyGetHostHostKey requests a Host-Host Key.
-func (c *DaemonEngine) DRKeyGetHostHostKey(
+func (e *DaemonEngine) DRKeyGetHostHostKey(
 	ctx context.Context,
 	meta drkey.HostHostMeta,
 ) (drkey.HostHostKey, error) {
-	if c.DRKeyClient == nil {
+	if e.DRKeyClient == nil {
 		return drkey.HostHostKey{}, serrors.New("DRKey is not available")
 	}
-
-	key, err := c.DRKeyClient.GetHostHostKey(ctx, meta)
-	if err != nil {
-		return drkey.HostHostKey{}, serrors.Wrap("getting Host-Host from client store", err)
-	}
-
-	return key, nil
-}
-
-// Close shuts down the connector.
-func (c *DaemonEngine) Close() error {
-	return nil
+	return e.DRKeyClient.GetHostHostKey(ctx, meta)
 }
