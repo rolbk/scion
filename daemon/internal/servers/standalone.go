@@ -16,10 +16,29 @@ package servers
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"time"
 
+	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/scionproto/scion/daemon/fetcher"
+	"github.com/scionproto/scion/pkg/grpc"
+	"github.com/scionproto/scion/pkg/log"
+	"github.com/scionproto/scion/private/pathdb"
+	"github.com/scionproto/scion/private/periodic"
+	"github.com/scionproto/scion/private/revcache"
+	"github.com/scionproto/scion/private/segment/segfetcher"
+	segfetchergrpc "github.com/scionproto/scion/private/segment/segfetcher/grpc"
+	segverifier "github.com/scionproto/scion/private/segment/verifier"
+	"github.com/scionproto/scion/private/storage"
+	truststoragemetrics "github.com/scionproto/scion/private/storage/trust/metrics"
+	"github.com/scionproto/scion/private/topology"
+	"github.com/scionproto/scion/private/trust"
+	"github.com/scionproto/scion/private/trust/compat"
+	trustmetrics "github.com/scionproto/scion/private/trust/metrics"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/resolver"
 
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/daemon"
@@ -31,6 +50,99 @@ import (
 	"github.com/scionproto/scion/pkg/snet"
 )
 
+// StandaloneOption is a functional option for NewStandaloneService.
+type StandaloneOption func(*standaloneOptions)
+
+// DefaultTopologyFile is the default path to the topology file.
+const DefaultTopologyFile = "/etc/scion/topology.json"
+
+// DefaultCertsDir is the default directory for trust material.
+const DefaultCertsDir = "/etc/scion/certs"
+
+type standaloneOptions struct {
+	certsDir               string
+	disableSegVerification bool
+	enablePeriodicCleanup  bool
+	enableMetrics          bool
+}
+
+// WithCertsDir sets the configuration directory for trust material.
+// Defaults to /etc/scion/certs.
+func WithCertsDir(dir string) StandaloneOption {
+	return func(o *standaloneOptions) {
+		o.certsDir = dir
+	}
+}
+
+// WithDisableSegVerification disables segment verification.
+// WARNING: This should NOT be used in production!
+func WithDisableSegVerification() StandaloneOption {
+	return func(o *standaloneOptions) {
+		o.disableSegVerification = true
+	}
+}
+
+// WithPeriodicCleanup enables periodic cleanup of path database and revocation cache.
+func WithPeriodicCleanup() StandaloneOption {
+	return func(o *standaloneOptions) {
+		o.enablePeriodicCleanup = true
+	}
+}
+
+// WithMetrics enables metrics collection for the standalone daemon.
+func WithMetrics() StandaloneOption {
+	return func(o *standaloneOptions) {
+		o.enableMetrics = true
+	}
+}
+
+// LoadTopologyFromFile loads a topology from a file and starts a background loader.
+// The returned Topology can be passed to NewStandaloneService.
+// The caller should ensure the context is cancelled when the topology is no longer needed.
+func LoadTopologyFromFile(ctx context.Context, topoFile string) (daemon.Topology, error) {
+	loader, err := topology.NewLoader(
+		topology.LoaderCfg{
+			File:      topoFile,
+			Reload:    nil,
+			Validator: &topology.DefaultValidator{},
+			Metrics:   newLoaderMetrics(),
+		},
+	)
+	if err != nil {
+		return nil, serrors.Wrap("creating topology loader", err)
+	}
+
+	go func() {
+		defer log.HandlePanic()
+		_ = loader.Run(ctx)
+	}()
+
+	return loader, nil
+}
+
+// newLoaderMetrics creates metrics for the topology loader.
+func newLoaderMetrics() topology.LoaderMetrics {
+	updates := prom.NewCounterVec(
+		"", "",
+		"topology_updates_total",
+		"The total number of updates.",
+		[]string{prom.LabelResult},
+	)
+	return topology.LoaderMetrics{
+		ValidationErrors: metrics.NewPromCounter(updates).With(prom.LabelResult, "err_validate"),
+		ReadErrors:       metrics.NewPromCounter(updates).With(prom.LabelResult, "err_read"),
+		LastUpdate: metrics.NewPromGauge(
+			prom.NewGaugeVec(
+				"", "",
+				"topology_last_update_time",
+				"Timestamp of the last successful update.",
+				[]string{},
+			),
+		),
+		Updates: metrics.NewPromCounter(updates).With(prom.LabelResult, prom.Success),
+	}
+}
+
 // StandaloneDaemon implements the daemon.Connector interface by directly
 // delegating to a DaemonEngine. This allows in-process usage of daemon
 // functionality without going through gRPC.
@@ -38,9 +150,206 @@ import (
 type StandaloneDaemon struct {
 	Engine  *DaemonEngine
 	Metrics StandaloneMetrics
+
+	pathDBCleaner *periodic.Runner
+	pathDB        storage.PathDB
+	revCache      revcache.RevCache
+	rcCleaner     *periodic.Runner
+	trustDB       storage.TrustDB
+	trcLoaderTask *periodic.Runner
 }
 
-// TODO: NewStandaloneDaemon
+// NewStandaloneService creates a daemon Connector that runs locally without a daemon process.
+// It requires a Topology (use LoadTopology to create one from a file) and accepts
+// functional options for configuration.
+//
+// The returned Connector can be used directly by SCION applications instead of connecting
+// to a daemon via gRPC.
+//
+// Example:
+//
+//	topo, err := daemon.LoadTopology(ctx, "/path/to/topology.json")
+//	if err != nil { ... }
+//	conn, err := daemon.NewStandaloneService(ctx, topo,
+//	    daemon.WithConfigDir("/path/to/config"),
+//	    daemon.WithMetrics(),
+//	)
+func NewStandaloneService(
+	ctx context.Context, topo daemon.Topology, opts ...StandaloneOption,
+) (daemon.Connector, error) {
+	options := &standaloneOptions{
+		certsDir: DefaultCertsDir,
+	}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	_, errCtx := errgroup.WithContext(ctx)
+
+	// Create dialer for control service
+	dialer := &grpc.TCPDialer{
+		SvcResolver: func(dst addr.SVC) []resolver.Address {
+			if base := dst.Base(); base != addr.SvcCS {
+				panic(
+					"unsupported address type, possible implementation error: " +
+						base.String(),
+				)
+			}
+			targets := []resolver.Address{}
+			for _, entry := range topo.ControlServiceAddresses() {
+				targets = append(targets, resolver.Address{Addr: entry.String()})
+			}
+			return targets
+		},
+	}
+
+	// Create RPC requester for segment fetching
+	var requester segfetcher.RPC = &segfetchergrpc.Requester{
+		Dialer: dialer,
+	}
+
+	// Initialize in-memory path storage
+	pathDB, err := storage.NewInMemoryPathStorage()
+	if err != nil {
+		return nil, serrors.Wrap("initializing path storage", err)
+	}
+
+	// Initialize revocation cache
+	revCache := storage.NewRevocationStorage()
+
+	// Start periodic cleaners if enabled
+	var cleaner *periodic.Runner
+	var rcCleaner *periodic.Runner
+	if options.enablePeriodicCleanup {
+		//nolint:staticcheck // SA1019: fix later (https://github.com/scionproto/scion/issues/4776).
+		cleaner = periodic.Start(
+			pathdb.NewCleaner(pathDB, "sd_segments"),
+			300*time.Second, 295*time.Second,
+		)
+
+		//nolint:staticcheck // SA1019: fix later (https://github.com/scionproto/scion/issues/4776).
+		rcCleaner = periodic.Start(
+			revcache.NewCleaner(revCache, "sd_revocation"),
+			10*time.Second, 10*time.Second,
+		)
+	}
+
+	var trustDB storage.TrustDB
+	var inspector trust.Inspector
+	var verifier segverifier.Verifier
+	var trcLoaderTask *periodic.Runner
+
+	// Create trust engine unless verification is disabled
+	if options.disableSegVerification {
+		log.Info("SEGMENT VERIFICATION DISABLED -- SHOULD NOT USE IN PRODUCTION!")
+		inspector = nil // avoids requiring trust material
+		verifier = segverifier.AcceptAll{}
+	} else {
+		trustDB, err = storage.NewInMemoryTrustStorage()
+		if err != nil {
+			return nil, serrors.Wrap("initializing trust database", err)
+		}
+		trustDB = truststoragemetrics.WrapDB(
+			trustDB, truststoragemetrics.Config{
+				Driver: string(storage.BackendSqlite),
+				QueriesTotal: metrics.NewPromCounterFrom(
+					prometheus.CounterOpts{
+						Name: "trustengine_db_queries_total",
+						Help: "Total queries to the database",
+					},
+					[]string{"driver", "operation", prom.LabelResult},
+				),
+			},
+		)
+		engine, err := TrustEngine(
+			errCtx, options.certsDir, topo.IA(), trustDB, dialer,
+		)
+		if err != nil {
+			return nil, serrors.Wrap("creating trust engine", err)
+		}
+		engine.Inspector = trust.CachingInspector{
+			Inspector:          engine.Inspector,
+			Cache:              cache.New(time.Minute, time.Minute),
+			CacheHits:          metrics.NewPromCounter(trustmetrics.CacheHitsTotal),
+			MaxCacheExpiration: time.Minute,
+		}
+		trcLoader := trust.TRCLoader{
+			Dir: options.certsDir,
+			DB:  trustDB,
+		}
+		//nolint:staticcheck // SA1019: fix later (https://github.com/scionproto/scion/issues/4776).
+		trcLoaderTask = periodic.Start(
+			periodic.Func{
+				Task: func(ctx context.Context) {
+					res, err := trcLoader.Load(ctx)
+					if err != nil {
+						log.SafeInfo(log.FromCtx(ctx), "TRC loading failed", "err", err)
+					}
+					if len(res.Loaded) > 0 {
+						log.SafeInfo(
+							log.FromCtx(ctx),
+							"Loaded TRCs from disk", "trcs", res.Loaded,
+						)
+					}
+				},
+				TaskName: "daemon_trc_loader",
+			}, 10*time.Second, 10*time.Second,
+		)
+
+		verifier = compat.Verifier{
+			Verifier: trust.Verifier{
+				Engine:             engine,
+				Cache:              cache.New(time.Minute, time.Minute),
+				CacheHits:          metrics.NewPromCounter(trustmetrics.CacheHitsTotal),
+				MaxCacheExpiration: time.Minute,
+			},
+		}
+	}
+
+	// Create fetcher
+	newFetcher := fetcher.NewFetcher(
+		fetcher.FetcherConfig{
+			IA:            topo.IA(),
+			MTU:           topo.MTU(),
+			Core:          topo.Core(),
+			NextHopper:    topo,
+			RPC:           requester,
+			PathDB:        pathDB,
+			Inspector:     inspector,
+			Verifier:      verifier,
+			RevCache:      revCache,
+			QueryInterval: 0,
+		},
+	)
+
+	// Create and return the connector
+	engine := &DaemonEngine{
+		IA:          topo.IA(),
+		MTU:         topo.MTU(),
+		Topology:    topo,
+		Fetcher:     newFetcher,
+		RevCache:    revCache,
+		DRKeyClient: nil, // DRKey not supported in standalone daemon
+	}
+
+	var standaloneMetrics StandaloneMetrics
+	if options.enableMetrics {
+		standaloneMetrics = NewStandaloneMetrics()
+	}
+
+	standalone := &StandaloneDaemon{
+		Engine:        engine,
+		Metrics:       standaloneMetrics,
+		pathDBCleaner: cleaner,
+		pathDB:        pathDB,
+		revCache:      revCache,
+		rcCleaner:     rcCleaner,
+		trustDB:       trustDB,
+		trcLoaderTask: trcLoaderTask,
+	}
+
+	return standalone, nil
+}
 
 // LocalIA returns the local ISD-AS number.
 func (s *StandaloneDaemon) LocalIA(ctx context.Context) (addr.IA, error) {
@@ -149,7 +458,29 @@ func (s *StandaloneDaemon) DRKeyGetHostHostKey(
 }
 
 func (s *StandaloneDaemon) Close() error {
-	return nil
+	var err error
+	if s.pathDBCleaner != nil {
+		s.pathDBCleaner.Stop()
+	}
+	if s.pathDB != nil {
+		err1 := s.pathDB.Close()
+		err = errors.Join(err, err1)
+	}
+	if s.revCache != nil {
+		err1 := s.revCache.Close()
+		err = errors.Join(err, err1)
+	}
+	if s.rcCleaner != nil {
+		s.rcCleaner.Stop()
+	}
+	if s.trustDB != nil {
+		err1 := s.trustDB.Close()
+		err = errors.Join(err, err1)
+	}
+	if s.trcLoaderTask != nil {
+		s.trcLoaderTask.Stop()
+	}
+	return err
 }
 
 // Compile-time assertion that StandaloneDaemon implements daemon.Connector.
@@ -200,13 +531,15 @@ func NewStandaloneMetrics() StandaloneMetrics {
 	resultLabels := []string{prom.LabelResult}
 	pathLabels := []string{prom.LabelResult, prom.LabelDst}
 	return StandaloneMetrics{
-		LocalIA:       newRequestMetric("local_ia", "local IA", resultLabels),
-		PortRange:     newRequestMetric("port_range", "port range", resultLabels),
-		Interfaces:    newRequestMetric("interfaces", "interfaces", resultLabels),
-		Paths:         newRequestMetric("paths", "path", pathLabels),
-		ASInfo:        newRequestMetric("as_info", "AS info", resultLabels),
-		SVCInfo:       newRequestMetric("svc_info", "SVC info", resultLabels),
-		InterfaceDown: newRequestMetric("interface_down", "interface down notification", resultLabels),
+		LocalIA:    newRequestMetric("local_ia", "local IA", resultLabels),
+		PortRange:  newRequestMetric("port_range", "port range", resultLabels),
+		Interfaces: newRequestMetric("interfaces", "interfaces", resultLabels),
+		Paths:      newRequestMetric("paths", "path", pathLabels),
+		ASInfo:     newRequestMetric("as_info", "AS info", resultLabels),
+		SVCInfo:    newRequestMetric("svc_info", "SVC info", resultLabels),
+		InterfaceDown: newRequestMetric(
+			"interface_down", "interface down notification", resultLabels,
+		),
 		DRKeyASHost:   newRequestMetric("drkey_as_host", "DRKey AS-Host", resultLabels),
 		DRKeyHostAS:   newRequestMetric("drkey_host_as", "DRKey Host-AS", resultLabels),
 		DRKeyHostHost: newRequestMetric("drkey_host_host", "DRKey Host-Host", resultLabels),
