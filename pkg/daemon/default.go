@@ -65,7 +65,7 @@ func DefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector, e
 	// DEFAULT FALLBACKS
 	// Priority 1: Load topology from file if it exists
 	if _, err := os.Stat(DefaultTopologyFile); err == nil {
-		topo, err := LoadTopologyFromFile(ctx, DefaultTopologyFile)
+		topo, err := LoadTopologyFromFile(DefaultTopologyFile)
 		if err != nil {
 			return nil, serrors.Wrap("loading topology from file", err)
 		}

@@ -17,12 +17,12 @@ package daemon
 import (
 	"context"
 	"errors"
+	"io"
 	"net/netip"
 	"time"
 
 	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/resolver"
 
 	"github.com/scionproto/scion/pkg/addr"
@@ -95,10 +95,9 @@ func WithMetrics() StandaloneOption {
 	}
 }
 
-// LoadTopologyFromFile loads a topology from a file and starts a background loader.
+// LoadTopologyFromFile loads a topology from a file.
 // The returned Topology can be passed to NewStandaloneService.
-// The caller should ensure the context is cancelled when the topology is no longer needed.
-func LoadTopologyFromFile(ctx context.Context, topoFile string) (Topology, error) {
+func LoadTopologyFromFile(topoFile string) (Topology, error) {
 	loader, err := topology.NewLoader(
 		topology.LoaderCfg{
 			File:      topoFile,
@@ -110,12 +109,6 @@ func LoadTopologyFromFile(ctx context.Context, topoFile string) (Topology, error
 	if err != nil {
 		return nil, serrors.Wrap("creating topology loader", err)
 	}
-
-	go func() {
-		defer log.HandlePanic()
-		_ = loader.Run(ctx)
-	}()
-
 	return loader, nil
 }
 
@@ -146,10 +139,14 @@ func newLoaderMetrics() topology.LoaderMetrics {
 // delegating to a DaemonEngine. This allows in-process usage of daemon
 // functionality without going through gRPC.
 // Also collects metrics for all operations.
+//
+// Close() will clean up all resources, including the topology if it implements
+// io.Closer.
 type StandaloneDaemon struct {
 	Engine  *DaemonEngine
 	Metrics StandaloneMetrics
 
+	topo          Topology
 	pathDBCleaner *periodic.Runner
 	pathDB        storage.PathDB
 	revCache      revcache.RevCache
@@ -159,7 +156,7 @@ type StandaloneDaemon struct {
 }
 
 // NewStandaloneService creates a daemon Connector that runs locally without a daemon process.
-// It requires a Topology (use LoadTopology to create one from a file) and accepts
+// It requires a Topology (use LoadTopologyFromFile to create one from a file) and accepts
 // functional options for configuration.
 //
 // The returned Connector can be used directly by SCION applications instead of connecting
@@ -167,10 +164,10 @@ type StandaloneDaemon struct {
 //
 // Example:
 //
-//	topo, err := daemon.LoadTopology(ctx, "/path/to/topology.json")
+//	topo, err := daemon.LoadTopologyFromFile("/path/to/topology.json")
 //	if err != nil { ... }
 //	conn, err := daemon.NewStandaloneService(ctx, topo,
-//	    daemon.WithConfigDir("/path/to/config"),
+//	    daemon.WithCertsDir("/path/to/certs"),
 //	    daemon.WithMetrics(),
 //	)
 func NewStandaloneService(
@@ -182,8 +179,6 @@ func NewStandaloneService(
 	for _, opt := range opts {
 		opt(options)
 	}
-
-	_, errCtx := errgroup.WithContext(ctx)
 
 	// Create dialer for control service
 	dialer := &grpc.TCPDialer{
@@ -261,7 +256,7 @@ func NewStandaloneService(
 			},
 		)
 		engine, err := TrustEngine(
-			errCtx, options.certsDir, topo.IA(), trustDB, dialer,
+			ctx, options.certsDir, topo.IA(), trustDB, dialer,
 		)
 		if err != nil {
 			return nil, serrors.Wrap("creating trust engine", err)
@@ -341,6 +336,7 @@ func NewStandaloneService(
 	standalone := &StandaloneDaemon{
 		Engine:        daemonEngine,
 		Metrics:       standaloneMetrics,
+		topo:          topo,
 		pathDBCleaner: cleaner,
 		pathDB:        pathDB,
 		revCache:      revCache,
@@ -480,6 +476,11 @@ func (s *StandaloneDaemon) Close() error {
 	}
 	if s.trcLoaderTask != nil {
 		s.trcLoaderTask.Stop()
+	}
+	// Close topology if it implements io.Closer.
+	if closer, ok := s.topo.(io.Closer); ok {
+		err1 := closer.Close()
+		err = errors.Join(err, err1)
 	}
 	return err
 }
