@@ -22,9 +22,19 @@ import (
 
 	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/resolver"
+
+	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/daemon/fetcher"
+	"github.com/scionproto/scion/pkg/drkey"
 	"github.com/scionproto/scion/pkg/grpc"
 	"github.com/scionproto/scion/pkg/log"
+	"github.com/scionproto/scion/pkg/metrics"
+	"github.com/scionproto/scion/pkg/private/ctrl/path_mgmt"
+	"github.com/scionproto/scion/pkg/private/prom"
+	"github.com/scionproto/scion/pkg/private/serrors"
+	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/private/pathdb"
 	"github.com/scionproto/scion/private/periodic"
 	"github.com/scionproto/scion/private/revcache"
@@ -37,16 +47,6 @@ import (
 	"github.com/scionproto/scion/private/trust"
 	"github.com/scionproto/scion/private/trust/compat"
 	trustmetrics "github.com/scionproto/scion/private/trust/metrics"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/resolver"
-
-	"github.com/scionproto/scion/pkg/addr"
-	"github.com/scionproto/scion/pkg/drkey"
-	"github.com/scionproto/scion/pkg/metrics"
-	"github.com/scionproto/scion/pkg/private/ctrl/path_mgmt"
-	"github.com/scionproto/scion/pkg/private/prom"
-	"github.com/scionproto/scion/pkg/private/serrors"
-	"github.com/scionproto/scion/pkg/snet"
 )
 
 // StandaloneOption is a functional option for NewStandaloneService.
@@ -303,6 +303,7 @@ func NewStandaloneService(
 				MaxCacheExpiration: time.Minute,
 			},
 		}
+		inspector = engine.Inspector
 	}
 
 	// Create fetcher
@@ -322,12 +323,13 @@ func NewStandaloneService(
 	)
 
 	// Create and return the connector
-	engine := &DaemonEngine{
+	daemonEngine := &DaemonEngine{
 		IA:          topo.IA(),
 		MTU:         topo.MTU(),
 		Topology:    topo,
 		Fetcher:     newFetcher,
 		RevCache:    revCache,
+		ASInspector: inspector,
 		DRKeyClient: nil, // DRKey not supported in standalone daemon
 	}
 
@@ -337,7 +339,7 @@ func NewStandaloneService(
 	}
 
 	standalone := &StandaloneDaemon{
-		Engine:        engine,
+		Engine:        daemonEngine,
 		Metrics:       standaloneMetrics,
 		pathDBCleaner: cleaner,
 		pathDB:        pathDB,

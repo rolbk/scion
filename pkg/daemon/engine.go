@@ -135,6 +135,7 @@ func (e *DaemonEngine) backgroundPaths(origCtx context.Context, src, dst addr.IA
 	}
 	span, ctx := opentracing.StartSpanFromContext(ctx, "fetch.paths.background", spanOpts...)
 	defer span.Finish()
+	//nolint:contextcheck
 	if _, err := e.fetchPaths(ctx, &e.backgroundPathDedupe, src, dst, refresh); err != nil {
 		log.FromCtx(ctx).Debug(
 			"Error fetching paths (background)", "err", err,
