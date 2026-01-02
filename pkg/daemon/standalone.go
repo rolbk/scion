@@ -49,7 +49,7 @@ import (
 	trustmetrics "github.com/scionproto/scion/private/trust/metrics"
 )
 
-// StandaloneOption is a functional option for NewStandaloneService.
+// StandaloneOption is a functional option for NewStandaloneConnector.
 type StandaloneOption func(*standaloneOptions)
 
 // DefaultTopologyFile is the default path to the topology file.
@@ -96,7 +96,7 @@ func WithMetrics() StandaloneOption {
 }
 
 // LoadTopologyFromFile loads a topology from a file.
-// The returned Topology can be passed to NewStandaloneService.
+// The returned Topology can be passed to NewStandaloneConnector.
 func LoadTopologyFromFile(topoFile string) (Topology, error) {
 	loader, err := topology.NewLoader(
 		topology.LoaderCfg{
@@ -155,7 +155,7 @@ type StandaloneDaemon struct {
 	trcLoaderTask *periodic.Runner
 }
 
-// NewStandaloneService creates a daemon Connector that runs locally without a daemon process.
+// NewStandaloneConnector creates a daemon Connector that runs locally without a daemon process.
 // It requires a Topology (use LoadTopologyFromFile to create one from a file) and accepts
 // functional options for configuration.
 //
@@ -166,11 +166,11 @@ type StandaloneDaemon struct {
 //
 //	topo, err := daemon.LoadTopologyFromFile("/path/to/topology.json")
 //	if err != nil { ... }
-//	conn, err := daemon.NewStandaloneService(ctx, topo,
+//	conn, err := daemon.NewStandaloneConnector(ctx, topo,
 //	    daemon.WithCertsDir("/path/to/certs"),
 //	    daemon.WithMetrics(),
 //	)
-func NewStandaloneService(
+func NewStandaloneConnector(
 	ctx context.Context, topo Topology, opts ...StandaloneOption,
 ) (Connector, error) {
 	options := &standaloneOptions{

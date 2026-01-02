@@ -70,7 +70,7 @@ func DefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector, e
 			return nil, serrors.Wrap("loading topology from file", err)
 		}
 
-		return NewStandaloneService(ctx, topo, WithCertsDir(DefaultCertsDir))
+		return NewStandaloneConnector(ctx, topo, WithCertsDir(DefaultCertsDir))
 	}
 
 	// Priority 2: Connect to daemon via gRPC
