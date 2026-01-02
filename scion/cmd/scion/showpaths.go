@@ -53,16 +53,13 @@ func newShowpaths(pather CommandPather) *cobra.Command {
 		Short:   "Display paths to a SCION AS",
 		Aliases: []string{"sp"},
 		Args:    cobra.ExactArgs(1),
-		Example: fmt.Sprintf(
-			`  %[1]s showpaths 1-ff00:0:110 --extended
+		Example: fmt.Sprintf(`  %[1]s showpaths 1-ff00:0:110 --extended
   %[1]s showpaths 1-ff00:0:110 --local 127.0.0.55 --json
   %[1]s showpaths 1-ff00:0:111 --sequence="0-0#2 0*" # outgoing IfID=2
   %[1]s showpaths 1-ff00:0:111 --sequence="0* 0-0#41" # incoming IfID=41 at dstIA
   %[1]s showpaths 1-ff00:0:111 --sequence="0* 1-ff00:0:112 0*" # 1-ff00:0:112 on the path
-  %[1]s showpaths 1-ff00:0:110 --no-probe`, pather.CommandPath(),
-		),
-		Long: fmt.Sprintf(
-			`'showpaths' lists available paths between the local and the specified
+  %[1]s showpaths 1-ff00:0:110 --no-probe`, pather.CommandPath()),
+		Long: fmt.Sprintf(`'showpaths' lists available paths between the local and the specified
 SCION ASe a.
 
 By default, the paths are probed. Paths served from the SCION Daemon's might not
@@ -73,8 +70,7 @@ If no alive path is discovered, json output is not enabled, and probing is not
 disabled, showpaths will exit with the code 1.
 On other errors, showpaths will exit with code 2.
 
-%s`, app.SequenceHelp,
-		),
+%s`, app.SequenceHelp),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dst, err := addr.ParseIA(args[0])
 			if err != nil {
@@ -163,30 +159,18 @@ On other errors, showpaths will exit with code 2.
 	envFlags.Register(cmd.Flags())
 	cmd.Flags().DurationVar(&flags.timeout, "timeout", 5*time.Second, "Timeout")
 	cmd.Flags().StringVar(&flags.cfg.Sequence, "sequence", "", app.SequenceUsage)
-	cmd.Flags().IntVarP(
-		&flags.cfg.MaxPaths, "maxpaths", "m", 10,
-		"Maximum number of paths that are displayed",
-	)
-	cmd.Flags().BoolVarP(
-		&flags.extended, "extended", "e", false,
-		"Show extended path meta data information",
-	)
-	cmd.Flags().BoolVarP(
-		&flags.cfg.Refresh, "refresh", "r", false,
-		"Set refresh flag for SCION Daemon path request",
-	)
-	cmd.Flags().BoolVar(
-		&flags.cfg.NoProbe, "no-probe", false,
-		"Do not probe the paths and print the health status",
-	)
-	cmd.Flags().BoolVarP(
-		&flags.json, "json", "j", false,
-		"Write the output as machine readable json",
-	)
-	cmd.Flags().StringVar(
-		&flags.format, "format", "human",
-		"Specify the output format (human|json|yaml)",
-	)
+	cmd.Flags().IntVarP(&flags.cfg.MaxPaths, "maxpaths", "m", 10,
+		"Maximum number of paths that are displayed")
+	cmd.Flags().BoolVarP(&flags.extended, "extended", "e", false,
+		"Show extended path meta data information")
+	cmd.Flags().BoolVarP(&flags.cfg.Refresh, "refresh", "r", false,
+		"Set refresh flag for SCION Daemon path request")
+	cmd.Flags().BoolVar(&flags.cfg.NoProbe, "no-probe", false,
+		"Do not probe the paths and print the health status")
+	cmd.Flags().BoolVarP(&flags.json, "json", "j", false,
+		"Write the output as machine readable json")
+	cmd.Flags().StringVar(&flags.format, "format", "human",
+		"Specify the output format (human|json|yaml)")
 	cmd.Flags().BoolVar(&flags.noColor, "no-color", false, "disable colored output")
 	cmd.Flags().StringVar(&flags.logLevel, "log.level", "", app.LogLevelUsage)
 	cmd.Flags().StringVar(&flags.tracer, "tracing.agent", "", "Tracing agent address")
