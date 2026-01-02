@@ -58,12 +58,10 @@ func TestSCIONEnvironment(t *testing.T) {
 	}
 	noEnv := func(t *testing.T) {}
 	setupFlags := func(t *testing.T, fs *pflag.FlagSet) {
-		err := fs.Parse(
-			[]string{
-				"--sciond", "scion:1234",
-				"--local", "10.0.0.42",
-			},
-		)
+		err := fs.Parse([]string{
+			"--sciond", "scion:1234",
+			"--local", "10.0.0.42",
+		})
 		require.NoError(t, err)
 	}
 	noFlags := func(t *testing.T, fs *pflag.FlagSet) {
@@ -121,19 +119,17 @@ func TestSCIONEnvironment(t *testing.T) {
 		},
 	}
 	for name, tc := range testCases {
-		t.Run(
-			name, func(t *testing.T) {
-				var env flag.SCIONEnvironment
-				fs := pflag.NewFlagSet("testSet", pflag.ContinueOnError)
-				env.Register(fs)
-				tc.flags(t, fs)
-				tc.env(t)
-				tc.file(t, &env)
-				require.NoError(t, env.LoadExternalVars())
-				assert.Equal(t, tc.daemon, env.Daemon())
-				assert.Equal(t, tc.local, env.Local())
-			},
-		)
+		t.Run(name, func(t *testing.T) {
+			var env flag.SCIONEnvironment
+			fs := pflag.NewFlagSet("testSet", pflag.ContinueOnError)
+			env.Register(fs)
+			tc.flags(t, fs)
+			tc.env(t)
+			tc.file(t, &env)
+			require.NoError(t, env.LoadExternalVars())
+			assert.Equal(t, tc.daemon, env.Daemon())
+			assert.Equal(t, tc.local, env.Local())
+		})
 	}
 }
 

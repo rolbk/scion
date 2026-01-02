@@ -98,19 +98,15 @@ func (e *SCIONEnvironment) Register(flagSet *pflag.FlagSet) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
+	e.iaFlag = flagSet.VarPF((*iaVal)(&e.ia), "isd-as", "",
+		"The local ISD-AS to use.")
+	e.localFlag = flagSet.VarPF((*ipVal)(&e.local), "local", "l",
+		"Local IP address to listen on.")
 	sciond := ""
 	e.sciondFlag = flagSet.VarPF(
 		(*stringVal)(&sciond), "sciond", "",
 		`Connect to SCION Daemon at the specified address instead of using the local
 topology.json (IP:Port or "default" for 127.0.0.1:30255)`,
-	)
-	e.iaFlag = flagSet.VarPF(
-		(*iaVal)(&e.ia), "isd-as", "",
-		"The local ISD-AS to use.",
-	)
-	e.localFlag = flagSet.VarPF(
-		(*ipVal)(&e.local), "local", "l",
-		"Local IP address to listen on.",
 	)
 }
 

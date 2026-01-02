@@ -97,24 +97,18 @@ case, the host could have multiple SCION addresses.
 
 			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
-			return enc.Encode(
-				map[string][]addrInfo{
-					"addresses": {
-						{
-							IA:      info.IA,
-							IP:      localIP,
-							Address: address,
-						},
-					},
-				},
-			)
+			return enc.Encode(map[string][]addrInfo{
+				"addresses": {{
+					IA:      info.IA,
+					IP:      localIP,
+					Address: address,
+				}},
+			})
 		},
 	}
 	envFlags.Register(cmd.Flags())
-	cmd.Flags().BoolVar(
-		&flags.json, "json", false,
-		"Write the output as machine readable json",
-	)
+	cmd.Flags().BoolVar(&flags.json, "json", false,
+		"Write the output as machine readable json")
 
 	return cmd
 }
