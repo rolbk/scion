@@ -171,7 +171,7 @@ func SDConn() daemon.Connector {
 	if err != nil {
 		LogFatal("Unable to load topology", "err", err, "topoFile", topoFile)
 	}
-	conn, err := daemon.NewStandaloneService(
+	conn, err := daemon.NewStandaloneConnector(
 		ctx, topo, daemon.WithCertsDir(filepath.Join(asPath, "certs")),
 	)
 	if err != nil {
