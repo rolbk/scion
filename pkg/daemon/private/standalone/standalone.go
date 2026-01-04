@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/scionproto/scion/pkg/addr"
-	"github.com/scionproto/scion/pkg/daemon/cp"
+	"github.com/scionproto/scion/pkg/daemon/asinfo"
 	"github.com/scionproto/scion/pkg/daemon/private/engine"
 	"github.com/scionproto/scion/pkg/daemon/private/types"
 	"github.com/scionproto/scion/pkg/drkey"
@@ -44,7 +44,7 @@ import (
 type Daemon struct {
 	Engine        *engine.DaemonEngine
 	Metrics       Metrics
-	CPInfo        cp.CPInfo
+	CPInfo        asinfo.LocalASInfo
 	PathDBCleaner *periodic.Runner
 	PathDB        storage.PathDB
 	RevCache      revcache.RevCache
@@ -182,7 +182,7 @@ func (s *Daemon) Close() error {
 	if s.TRCLoaderTask != nil {
 		s.TRCLoaderTask.Stop()
 	}
-	// Close CPInfo if it implements io.Closer.
+	// Close LocalASInfo if it implements io.Closer.
 	if closer, ok := s.CPInfo.(io.Closer); ok {
 		err1 := closer.Close()
 		err = errors.Join(err, err1)

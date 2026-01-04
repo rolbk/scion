@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/resolver"
 
 	"github.com/scionproto/scion/pkg/addr"
-	"github.com/scionproto/scion/pkg/daemon/cp"
+	"github.com/scionproto/scion/pkg/daemon/asinfo"
 	"github.com/scionproto/scion/pkg/daemon/fetcher"
 	"github.com/scionproto/scion/pkg/daemon/private/engine"
 	"github.com/scionproto/scion/pkg/daemon/private/standalone"
@@ -96,12 +96,12 @@ func WithMetrics() standaloneOption {
 //
 // Most users should use NewStandaloneConnector() directly with a file path
 // instead of using this function.
-func LoadCPInfoFromFile(topoFile string) (cp.CPInfo, error) {
-	return cp.LoadFromTopoFile(topoFile)
+func LoadCPInfoFromFile(topoFile string) (asinfo.LocalASInfo, error) {
+	return asinfo.LoadFromTopoFile(topoFile)
 }
 
 // NewStandaloneConnector creates a daemon Connector that runs locally without a daemon process.
-// It requires a CPInfo (use LoadCPInfoFromFile to create one from a file) and accepts
+// It requires a LocalASInfo (use LoadCPInfoFromFile to create one from a file) and accepts
 // functional options for configuration.
 //
 // The returned Connector can be used directly by SCION applications instead of connecting
@@ -116,7 +116,7 @@ func LoadCPInfoFromFile(topoFile string) (cp.CPInfo, error) {
 //	    daemon.WithMetrics(),
 //	)
 func NewStandaloneConnector(
-	ctx context.Context, cpInfo cp.CPInfo, opts ...standaloneOption,
+	ctx context.Context, cpInfo asinfo.LocalASInfo, opts ...standaloneOption,
 ) (Connector, error) {
 
 	options := &standaloneOptions{
