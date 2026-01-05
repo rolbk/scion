@@ -23,7 +23,8 @@ import (
 	"github.com/scionproto/scion/pkg/private/serrors"
 )
 
-// SuppliedOption is a functional option for DefaultConnector and overrides the default priorities.
+// SuppliedOption is a functional option for NewDefaultConnector and
+// overrides the default priorities.
 type SuppliedOption func(*suppliedOptions)
 
 type suppliedOptions struct {
@@ -38,7 +39,7 @@ func WithDaemon(addr string) SuppliedOption {
 	}
 }
 
-// DefaultConnector creates a new Connector based on supplied and default options.
+// NewDefaultConnector creates a new Connector based on supplied and default options.
 //
 // Priority order of supplied options:
 //  1. If WithDaemon was called, return a gRPC connector to the specified daemon.
@@ -49,7 +50,7 @@ func WithDaemon(addr string) SuppliedOption {
 //  3. Return error if none of the above are successful.
 //
 // TODO: include bootstrapping functionality
-func DefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector, error) {
+func NewDefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector, error) {
 	options := &suppliedOptions{}
 	for _, opt := range opts {
 		opt(options)

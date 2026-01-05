@@ -112,7 +112,7 @@ On other errors, traceroute will exit with code 2.
 			span.SetTag("dst.host", remote.Host.IP())
 			defer span.Finish()
 
-			sd, err := daemon.DefaultConnector(traceCtx, daemon.WithDaemon(envFlags.Daemon()))
+			sd, err := daemon.NewDefaultConnector(traceCtx, daemon.WithDaemon(envFlags.Daemon()))
 			if err != nil {
 				return serrors.Wrap("getting daemon connector", err)
 			}

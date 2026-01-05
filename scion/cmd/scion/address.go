@@ -65,7 +65,7 @@ case, the host could have multiple SCION addresses.
 			span, traceCtx := tracing.CtxWith(context.Background(), "run")
 			defer span.Finish()
 
-			sd, err := daemon.DefaultConnector(traceCtx, daemon.WithDaemon(envFlags.Daemon()))
+			sd, err := daemon.NewDefaultConnector(traceCtx, daemon.WithDaemon(envFlags.Daemon()))
 			if err != nil {
 				return serrors.Wrap("getting daemon connector", err)
 			}
