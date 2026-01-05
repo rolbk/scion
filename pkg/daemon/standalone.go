@@ -193,7 +193,7 @@ func NewStandaloneConnector(
 				[]string{"driver", "operation", "result"},
 			),
 		})
-		trustEngine, err := trust.Engine(
+		trustEngine, err := trust.NewEngine(
 			ctx, options.certsDir, localASInfo.IA(), trustDB, dialer,
 		)
 		if err != nil {

@@ -154,7 +154,7 @@ func realMain(ctx context.Context) error {
 		),
 	})
 	certsDir := filepath.Join(globalCfg.General.ConfigDir, "certs")
-	engine, err := daemontrust.Engine(
+	engine, err := daemontrust.NewEngine(
 		errCtx, certsDir, topo.IA(), trustDB, dialer,
 	)
 	if err != nil {

@@ -28,8 +28,8 @@ import (
 	trustmetrics "github.com/scionproto/scion/private/trust/metrics"
 )
 
-// Engine builds the trust engine backed by the trust database.
-func Engine(
+// NewEngine builds the trust engine backed by the trust database.
+func NewEngine(
 	ctx context.Context,
 	certsDir string,
 	ia addr.IA,
