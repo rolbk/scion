@@ -69,9 +69,9 @@ func WithCertsDir(dir string) standaloneOption {
 	}
 }
 
-// WithDisableSegVerification disables segment verification.
+// WithDisabledSegVerification disables segment verification.
 // WARNING: This should NOT be used in production!
-func WithDisableSegVerification() standaloneOption {
+func WithDisabledSegVerification() standaloneOption {
 	return func(o *standaloneOptions) {
 		o.disableSegVerification = true
 	}
