@@ -91,17 +91,17 @@ func WithMetrics() standaloneOption {
 	}
 }
 
-// LoadCPInfoFromFile loads a topology from a file.
-// The returned topology can be passed to NewStandaloneConnector.
+// LoadASInfoFromFile loads local AS Information from a file.
+// The returned struct can be passed to NewStandaloneConnector.
 //
 // Most users should use NewStandaloneConnector() directly with a file path
 // instead of using this function.
-func LoadCPInfoFromFile(topoFile string) (asinfo.LocalASInfo, error) {
+func LoadASInfoFromFile(topoFile string) (asinfo.LocalASInfo, error) {
 	return asinfo.LoadFromTopoFile(topoFile)
 }
 
 // NewStandaloneConnector creates a daemon Connector that runs locally without a daemon process.
-// It requires a LocalASInfo (use LoadCPInfoFromFile to create one from a file) and accepts
+// It requires a LocalASInfo (use LoadASInfoFromFile to create one from a file) and accepts
 // functional options for configuration.
 //
 // The returned Connector can be used directly by SCION applications instead of connecting
@@ -109,14 +109,14 @@ func LoadCPInfoFromFile(topoFile string) (asinfo.LocalASInfo, error) {
 //
 // Example:
 //
-//	cpinfo, err := daemon.LoadCPInfoFromFile("/path/to/topology.json")
+//	localASInfo, err := daemon.LoadASInfoFromFile("/path/to/topology.json")
 //	if err != nil { ... }
-//	conn, err := daemon.NewStandaloneConnector(ctx, cpinfo,
+//	conn, err := daemon.NewStandaloneConnector(ctx, localASInfo,
 //	    daemon.WithCertsDir("/path/to/certs"),
 //	    daemon.WithMetrics(),
 //	)
 func NewStandaloneConnector(
-	ctx context.Context, cpInfo asinfo.LocalASInfo, opts ...standaloneOption,
+	ctx context.Context, localASInfo asinfo.LocalASInfo, opts ...standaloneOption,
 ) (Connector, error) {
 
 	options := &standaloneOptions{
@@ -134,7 +134,7 @@ func NewStandaloneConnector(
 					base.String())
 			}
 			targets := []resolver.Address{}
-			for _, entry := range cpInfo.ControlServiceAddresses() {
+			for _, entry := range localASInfo.ControlServiceAddresses() {
 				targets = append(targets, resolver.Address{Addr: entry.String()})
 			}
 			return targets
@@ -194,7 +194,7 @@ func NewStandaloneConnector(
 			),
 		})
 		trustEngine, err := trust.Engine(
-			ctx, options.certsDir, cpInfo.IA(), trustDB, dialer,
+			ctx, options.certsDir, localASInfo.IA(), trustDB, dialer,
 		)
 		if err != nil {
 			return nil, serrors.Wrap("creating trust engine", err)
@@ -242,10 +242,10 @@ func NewStandaloneConnector(
 	// Create fetcher
 	newFetcher := fetcher.NewFetcher(
 		fetcher.FetcherConfig{
-			IA:            cpInfo.IA(),
-			MTU:           cpInfo.MTU(),
-			Core:          cpInfo.Core(),
-			NextHopper:    cpInfo,
+			IA:            localASInfo.IA(),
+			MTU:           localASInfo.MTU(),
+			Core:          localASInfo.Core(),
+			NextHopper:    localASInfo,
 			RPC:           requester,
 			PathDB:        pathDB,
 			Inspector:     inspector,
@@ -257,9 +257,9 @@ func NewStandaloneConnector(
 
 	// Create the daemon engine
 	daemonEngine := &engine.DaemonEngine{
-		IA:          cpInfo.IA(),
-		MTU:         cpInfo.MTU(),
-		CPInfo:      cpInfo,
+		IA:          localASInfo.IA(),
+		MTU:         localASInfo.MTU(),
+		LocalASInfo: localASInfo,
 		Fetcher:     newFetcher,
 		RevCache:    revCache,
 		ASInspector: inspector,
@@ -274,7 +274,7 @@ func NewStandaloneConnector(
 	standaloneDaemon := &standalone.Daemon{
 		Engine:        daemonEngine,
 		Metrics:       standaloneMetrics,
-		CPInfo:        cpInfo,
+		LocalASInfo:   localASInfo,
 		PathDBCleaner: cleaner,
 		PathDB:        pathDB,
 		RevCache:      revCache,

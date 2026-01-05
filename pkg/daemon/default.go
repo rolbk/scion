@@ -44,7 +44,7 @@ func WithDaemon(addr string) SuppliedOption {
 //  1. If WithDaemon was called, return a gRPC connector to the specified daemon.
 //
 // Priority order of default options:
-//  1. Load topology from file if it exists.
+//  1. Create from topology file if it exists
 //  2. Connect to daemon via gRPC if reachable.
 //  3. Return error if none of the above are successful.
 //
@@ -63,13 +63,13 @@ func DefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector, e
 	}
 
 	// DEFAULT FALLBACKS
-	// Priority 1: Load topology from file if it exists
+	// Priority 1: Create from topology file if it exists
 	if _, err := os.Stat(DefaultTopologyFile); err == nil {
-		cpinfo, err := LoadCPInfoFromFile(DefaultTopologyFile)
+		localASInfo, err := LoadASInfoFromFile(DefaultTopologyFile)
 		if err != nil {
 			return nil, serrors.Wrap("loading topology from file", err)
 		}
-		return NewStandaloneConnector(ctx, cpinfo, WithCertsDir(DefaultCertsDir))
+		return NewStandaloneConnector(ctx, localASInfo, WithCertsDir(DefaultCertsDir))
 	}
 
 	// Priority 2: Connect to daemon via gRPC

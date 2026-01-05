@@ -60,7 +60,7 @@ type DaemonServer struct {
 func NewDaemonServer(
 	ia addr.IA,
 	mtu uint16,
-	cpInfo asinfo.LocalASInfo,
+	localASInfo asinfo.LocalASInfo,
 	fetcher fetcher.Fetcher,
 	revCache revcache.RevCache,
 	asInspector trust.Inspector,
@@ -71,7 +71,7 @@ func NewDaemonServer(
 		Engine: &engine.DaemonEngine{
 			IA:          ia,
 			MTU:         mtu,
-			CPInfo:      cpInfo,
+			LocalASInfo: localASInfo,
 			Fetcher:     fetcher,
 			RevCache:    revCache,
 			ASInspector: asInspector,

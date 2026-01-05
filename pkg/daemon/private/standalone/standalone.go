@@ -39,12 +39,12 @@ import (
 // functionality without going through gRPC.
 // Also collects metrics for all operations.
 //
-// Close() will clean up all resources, including CPInfo if it implements
+// Close() will clean up all resources, including LocalASInfo if it implements
 // io.Closer.
 type Daemon struct {
 	Engine        *engine.DaemonEngine
 	Metrics       Metrics
-	CPInfo        asinfo.LocalASInfo
+	LocalASInfo   asinfo.LocalASInfo
 	PathDBCleaner *periodic.Runner
 	PathDB        storage.PathDB
 	RevCache      revcache.RevCache
@@ -183,7 +183,7 @@ func (s *Daemon) Close() error {
 		s.TRCLoaderTask.Stop()
 	}
 	// Close LocalASInfo if it implements io.Closer.
-	if closer, ok := s.CPInfo.(io.Closer); ok {
+	if closer, ok := s.LocalASInfo.(io.Closer); ok {
 		err1 := closer.Close()
 		err = errors.Join(err, err1)
 	}

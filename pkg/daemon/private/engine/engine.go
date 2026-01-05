@@ -46,7 +46,7 @@ import (
 type DaemonEngine struct {
 	IA          addr.IA
 	MTU         uint16
-	CPInfo      asinfo.LocalASInfo
+	LocalASInfo asinfo.LocalASInfo
 	Fetcher     fetcher.Fetcher
 	RevCache    revcache.RevCache
 	ASInspector trust.Inspector
@@ -63,14 +63,14 @@ func (e *DaemonEngine) LocalIA(ctx context.Context) (addr.IA, error) {
 
 // PortRange returns the dispatched port range.
 func (e *DaemonEngine) PortRange(ctx context.Context) (uint16, uint16, error) {
-	start, end := e.CPInfo.PortRange()
+	start, end := e.LocalASInfo.PortRange()
 	return start, end, nil
 }
 
 // Interfaces returns the map of interface identifiers to the underlay internal address.
 func (e *DaemonEngine) Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, error) {
 	result := make(map[uint16]netip.AddrPort)
-	topo := e.CPInfo
+	topo := e.LocalASInfo
 	for _, ifID := range topo.IfIDs() {
 		nextHop := topo.UnderlayNextHop(ifID)
 		if nextHop == nil {
@@ -165,7 +165,7 @@ func (e *DaemonEngine) ASInfo(ctx context.Context, ia addr.IA) (types.ASInfo, er
 // SVCInfo requests information about addresses and ports of infrastructure services.
 func (e *DaemonEngine) SVCInfo(ctx context.Context) ([]string, error) {
 	var uris []string
-	for _, h := range e.CPInfo.ControlServiceAddresses() {
+	for _, h := range e.LocalASInfo.ControlServiceAddresses() {
 		uris = append(uris, h.String())
 	}
 	return uris, nil

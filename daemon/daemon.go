@@ -116,7 +116,7 @@ type ServerConfig struct {
 	Fetcher     fetcher.Fetcher
 	RevCache    revcache.RevCache
 	Engine      trust.Engine
-	CPInfo      asinfo.LocalASInfo
+	LocalASInfo asinfo.LocalASInfo
 	DRKeyClient *drkey.ClientEngine
 }
 
@@ -129,7 +129,7 @@ func NewServer(cfg ServerConfig) *servers.DaemonServer {
 			// TODO(JordiSubira): This will be changed in the future to fetch
 			// the information from the CS instead of feeding the configuration
 			// file into.
-			CPInfo:      cfg.CPInfo,
+			LocalASInfo: cfg.LocalASInfo,
 			Fetcher:     cfg.Fetcher,
 			ASInspector: cfg.Engine.Inspector,
 			RevCache:    cfg.RevCache,
