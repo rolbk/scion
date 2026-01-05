@@ -131,13 +131,19 @@ On other errors, ping will exit with code 2.
 			if err := envFlags.LoadExternalVars(); err != nil {
 				return err
 			}
+			if err := envFlags.Validate(); err != nil {
+				return err
+			}
 
 			span, traceCtx := tracing.CtxWith(context.Background(), "run")
 			span.SetTag("dst.isd_as", remote.IA)
 			span.SetTag("dst.host", remote.Host.IP())
 			defer span.Finish()
 
-			sd, err := daemon.NewDefaultConnector(traceCtx, daemon.WithDaemon(envFlags.Daemon()))
+			sd, err := daemon.NewDefaultConnector(traceCtx,
+				daemon.WithDaemon(envFlags.Daemon()),
+				daemon.WithConfigDir(envFlags.ConfigDir()),
+			)
 			if err != nil {
 				return serrors.Wrap("getting daemon connector", err)
 			}

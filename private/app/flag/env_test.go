@@ -139,3 +139,66 @@ func tempEnv(t *testing.T, key, val string) {
 	require.NoError(t, os.Setenv(key, val))
 	t.Cleanup(func() { require.NoError(t, os.Unsetenv(key)) })
 }
+
+func TestSCIONEnvironmentConfigDir(t *testing.T) {
+	testCases := map[string]struct {
+		flags     []string
+		configDir string
+	}{
+		"no flag": {
+			flags:     []string{},
+			configDir: "",
+		},
+		"config-dir flag set": {
+			flags:     []string{"--config-dir", "/custom/path"},
+			configDir: "/custom/path",
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			var env flag.SCIONEnvironment
+			fs := pflag.NewFlagSet("testSet", pflag.ContinueOnError)
+			env.Register(fs)
+			require.NoError(t, fs.Parse(tc.flags))
+			assert.Equal(t, tc.configDir, env.ConfigDir())
+		})
+	}
+}
+
+func TestSCIONEnvironmentValidate(t *testing.T) {
+	testCases := map[string]struct {
+		flags   []string
+		wantErr bool
+	}{
+		"no flags": {
+			flags:   []string{},
+			wantErr: false,
+		},
+		"only sciond": {
+			flags:   []string{"--sciond", "127.0.0.1:30255"},
+			wantErr: false,
+		},
+		"only config-dir": {
+			flags:   []string{"--config-dir", "/custom/path"},
+			wantErr: false,
+		},
+		"both flags - error": {
+			flags:   []string{"--sciond", "127.0.0.1:30255", "--config-dir", "/custom/path"},
+			wantErr: true,
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			var env flag.SCIONEnvironment
+			fs := pflag.NewFlagSet("testSet", pflag.ContinueOnError)
+			env.Register(fs)
+			require.NoError(t, fs.Parse(tc.flags))
+			err := env.Validate()
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

@@ -60,12 +60,18 @@ case, the host could have multiple SCION addresses.
 			if err := envFlags.LoadExternalVars(); err != nil {
 				return err
 			}
+			if err := envFlags.Validate(); err != nil {
+				return err
+			}
 			cmd.SilenceUsage = true
 
 			span, traceCtx := tracing.CtxWith(context.Background(), "run")
 			defer span.Finish()
 
-			sd, err := daemon.NewDefaultConnector(traceCtx, daemon.WithDaemon(envFlags.Daemon()))
+			sd, err := daemon.NewDefaultConnector(traceCtx,
+				daemon.WithDaemon(envFlags.Daemon()),
+				daemon.WithConfigDir(envFlags.ConfigDir()),
+			)
 			if err != nil {
 				return serrors.Wrap("getting daemon connector", err)
 			}

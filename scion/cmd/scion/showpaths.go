@@ -98,6 +98,9 @@ On other errors, showpaths will exit with code 2.
 			if err := envFlags.LoadExternalVars(); err != nil {
 				return err
 			}
+			if err := envFlags.Validate(); err != nil {
+				return err
+			}
 
 			span, traceCtx := tracing.CtxWith(context.Background(), "run")
 			span.SetTag("dst.isd_as", dst)
@@ -106,7 +109,10 @@ On other errors, showpaths will exit with code 2.
 			ctx, cancel := context.WithTimeout(traceCtx, flags.timeout)
 			defer cancel()
 
-			sd, err := daemon.NewDefaultConnector(ctx, daemon.WithDaemon(envFlags.Daemon()))
+			sd, err := daemon.NewDefaultConnector(ctx,
+				daemon.WithDaemon(envFlags.Daemon()),
+				daemon.WithConfigDir(envFlags.ConfigDir()),
+			)
 			if err != nil {
 				return serrors.Wrap("getting daemon connector", err)
 			}

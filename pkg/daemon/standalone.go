@@ -45,11 +45,14 @@ import (
 	trustmetrics "github.com/scionproto/scion/private/trust/metrics"
 )
 
+// DefaultConfigDir is the default directory for SCION configuration.
+const DefaultConfigDir = "/etc/scion"
+
 // DefaultTopologyFile is the default path to the topology file.
-const DefaultTopologyFile = "/etc/scion/topology.json"
+const DefaultTopologyFile = DefaultConfigDir + "/topology.json"
 
 // DefaultCertsDir is the default directory for trust material.
-const DefaultCertsDir = "/etc/scion/certs"
+const DefaultCertsDir = DefaultConfigDir + "/certs"
 
 // standaloneOption is a functional option for NewStandaloneConnector.
 type standaloneOption func(*standaloneOptions)

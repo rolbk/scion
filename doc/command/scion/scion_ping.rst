@@ -86,6 +86,8 @@ Options
 
 ::
 
+      --config-dir string      Directory containing topology.json and certs/ for standalone mode.
+                               Defaults to /etc/scion. Mutually exclusive with --sciond.
   -c, --count uint16           total number of packets to send
       --epic                   Enable EPIC for path probing.
       --format string          Specify the output format (human|json|yaml) (default "human")
@@ -107,8 +109,9 @@ Options
                                the total size of the packet is still variable size due to the variable size of
                                the SCION path.
       --refresh                set refresh flag for path request
-      --sciond string          Connect to SCION Daemon at the specified address instead of using the local
-                               topology.json (IP:Port or "default" for 127.0.0.1:30255)
+      --sciond string          Connect to SCION Daemon at the specified address instead of using
+                               the local topology.json (IP:Port or "default" for 127.0.0.1:30255).
+                               Mutually exclusive with --config-dir.
       --sequence string        Space separated list of hop predicates
       --timeout duration       timeout per packet (default 1s)
       --tracing.agent string   Tracing agent address

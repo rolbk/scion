@@ -18,6 +18,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/scionproto/scion/pkg/private/serrors"
@@ -28,26 +29,36 @@ import (
 type SuppliedOption func(*suppliedOptions)
 
 type suppliedOptions struct {
-	sciond string
+	sciond    string
+	configDir string
 }
 
 // WithDaemon sets the daemon address for a gRPC connector.
-// This has the lowest priority.
+// When set, the connector will connect to the specified daemon via gRPC.
+// Mutually exclusive with WithConfigDir.
 func WithDaemon(addr string) SuppliedOption {
 	return func(o *suppliedOptions) {
 		o.sciond = addr
 	}
 }
 
+// WithConfigDir sets the configuration directory for standalone mode.
+// The directory should contain topology.json and a certs/ subdirectory.
+// Mutually exclusive with WithDaemon.
+func WithConfigDir(dir string) SuppliedOption {
+	return func(o *suppliedOptions) {
+		o.configDir = dir
+	}
+}
+
 // NewDefaultConnector creates a new Connector based on supplied and default options.
 //
-// Priority order of supplied options:
+// Priority order:
 //  1. If WithDaemon was called, return a gRPC connector to the specified daemon.
-//
-// Priority order of default options:
-//  1. Create from topology file if it exists
-//  2. Connect to daemon via gRPC if reachable.
-//  3. Return error if none of the above are successful.
+//  2. If WithConfigDir was called, use standalone mode with the specified directory.
+//  3. If topology file exists at default location, use standalone mode.
+//  4. If daemon is reachable at default address, connect via gRPC.
+//  5. Return error if none of the above are successful.
 //
 // TODO: include bootstrapping functionality
 func NewDefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector, error) {
@@ -55,7 +66,12 @@ func NewDefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector
 	for _, opt := range opts {
 		opt(options)
 	}
-	// SUPPLIED OPTIONS
+
+	// Check mutual exclusivity
+	if options.sciond != "" && options.configDir != "" {
+		return nil, serrors.New("WithDaemon and WithConfigDir are mutually exclusive")
+	}
+
 	// Priority 1: Use provided daemon address
 	if options.sciond != "" {
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
@@ -63,8 +79,19 @@ func NewDefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector
 		return NewService(options.sciond).Connect(ctx)
 	}
 
-	// DEFAULT FALLBACKS
-	// Priority 1: Create from topology file if it exists
+	// Priority 2: Use provided config directory for standalone mode
+	if options.configDir != "" {
+		topoFile := filepath.Join(options.configDir, "topology.json")
+		certsDir := filepath.Join(options.configDir, "certs")
+		localASInfo, err := LoadASInfoFromFile(topoFile)
+		if err != nil {
+			return nil, serrors.Wrap("loading topology from file", err,
+				"topology_file", topoFile)
+		}
+		return NewStandaloneConnector(ctx, localASInfo, WithCertsDir(certsDir))
+	}
+
+	// Priority 3: Create from topology file at default location if it exists
 	if _, err := os.Stat(DefaultTopologyFile); err == nil {
 		localASInfo, err := LoadASInfoFromFile(DefaultTopologyFile)
 		if err != nil {
@@ -73,7 +100,7 @@ func NewDefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector
 		return NewStandaloneConnector(ctx, localASInfo, WithCertsDir(DefaultCertsDir))
 	}
 
-	// Priority 2: Connect to daemon via gRPC
+	// Priority 4: Connect to daemon via gRPC if reachable
 	if isReachable(DefaultAPIAddress, 500*time.Millisecond) {
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
@@ -84,6 +111,7 @@ func NewDefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector
 	return nil, serrors.New(
 		"no suitable daemon connection method found",
 		"tried_supplied_api_address", options.sciond,
+		"tried_supplied_config_dir", options.configDir,
 		"tried_default_topology_file", DefaultTopologyFile,
 		"tried_default_api_address", DefaultAPIAddress,
 	)
