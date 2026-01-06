@@ -271,7 +271,7 @@ The template is expressed in JSON. A valid example::
 			// Setup basic state.
 			daemonCtx, daemonCancel := context.WithTimeout(ctx, time.Second)
 			defer daemonCancel()
-			sd, err := daemon.NewDefaultConnector(ctx, daemon.WithDaemon(envFlags.Daemon()))
+			sd, err := daemon.NewAutoConnector(ctx, daemon.WithDaemon(envFlags.Daemon()))
 			if err != nil {
 				return serrors.Wrap("connecting to SCION Daemon", err)
 			}

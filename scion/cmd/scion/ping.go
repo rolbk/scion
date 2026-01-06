@@ -140,7 +140,7 @@ On other errors, ping will exit with code 2.
 			span.SetTag("dst.host", remote.Host.IP())
 			defer span.Finish()
 
-			sd, err := daemon.NewDefaultConnector(traceCtx,
+			sd, err := daemon.NewAutoConnector(traceCtx,
 				daemon.WithDaemon(envFlags.Daemon()),
 				daemon.WithConfigDir(envFlags.ConfigDir()),
 			)

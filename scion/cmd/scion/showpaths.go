@@ -109,7 +109,7 @@ On other errors, showpaths will exit with code 2.
 			ctx, cancel := context.WithTimeout(traceCtx, flags.timeout)
 			defer cancel()
 
-			sd, err := daemon.NewDefaultConnector(ctx,
+			sd, err := daemon.NewAutoConnector(ctx,
 				daemon.WithDaemon(envFlags.Daemon()),
 				daemon.WithConfigDir(envFlags.ConfigDir()),
 			)

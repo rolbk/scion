@@ -24,9 +24,9 @@ import (
 	"github.com/scionproto/scion/pkg/private/serrors"
 )
 
-// SuppliedOption is a functional option for NewDefaultConnector and
+// AutoConnectorOption is a functional option for NewAutoConnector and
 // overrides the default priorities.
-type SuppliedOption func(*suppliedOptions)
+type AutoConnectorOption func(*suppliedOptions)
 
 type suppliedOptions struct {
 	sciond    string
@@ -36,7 +36,7 @@ type suppliedOptions struct {
 // WithDaemon sets the daemon address for a gRPC connector.
 // When set, the connector will connect to the specified daemon via gRPC.
 // Mutually exclusive with WithConfigDir.
-func WithDaemon(addr string) SuppliedOption {
+func WithDaemon(addr string) AutoConnectorOption {
 	return func(o *suppliedOptions) {
 		o.sciond = addr
 	}
@@ -45,13 +45,13 @@ func WithDaemon(addr string) SuppliedOption {
 // WithConfigDir sets the configuration directory for standalone mode.
 // The directory should contain topology.json and a certs/ subdirectory.
 // Mutually exclusive with WithDaemon.
-func WithConfigDir(dir string) SuppliedOption {
+func WithConfigDir(dir string) AutoConnectorOption {
 	return func(o *suppliedOptions) {
 		o.configDir = dir
 	}
 }
 
-// NewDefaultConnector creates a new Connector based on supplied and default options.
+// NewAutoConnector creates a new Connector based on supplied and default options.
 //
 // Priority order:
 //  1. If WithDaemon was called, return a gRPC connector to the specified daemon.
@@ -61,7 +61,7 @@ func WithConfigDir(dir string) SuppliedOption {
 //  5. Return error if none of the above are successful.
 //
 // TODO: include bootstrapping functionality
-func NewDefaultConnector(ctx context.Context, opts ...SuppliedOption) (Connector, error) {
+func NewAutoConnector(ctx context.Context, opts ...AutoConnectorOption) (Connector, error) {
 	options := &suppliedOptions{}
 	for _, opt := range opts {
 		opt(options)

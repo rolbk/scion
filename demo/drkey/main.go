@@ -100,7 +100,7 @@ func realMain() int {
 		DstHost: clientAddr.Host.IP.String(),
 	}
 
-	daemon, err := daemon.NewDefaultConnector(ctx, daemon.WithDaemon(scionEnv.Daemon()))
+	daemon, err := daemon.NewAutoConnector(ctx, daemon.WithDaemon(scionEnv.Daemon()))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error dialing SCION Daemon:", err)
 		return 1
