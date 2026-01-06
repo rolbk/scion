@@ -27,7 +27,7 @@ import (
 	"github.com/scionproto/scion/pkg/daemon/asinfo"
 	"github.com/scionproto/scion/pkg/daemon/fetcher"
 	drkey_daemon "github.com/scionproto/scion/pkg/daemon/private/drkey"
-	"github.com/scionproto/scion/pkg/daemon/private/types"
+	"github.com/scionproto/scion/pkg/daemon/types"
 	"github.com/scionproto/scion/pkg/drkey"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/ctrl/path_mgmt"

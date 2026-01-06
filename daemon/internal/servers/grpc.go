@@ -25,11 +25,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/scionproto/scion/pkg/addr"
-	"github.com/scionproto/scion/pkg/daemon"
 	"github.com/scionproto/scion/pkg/daemon/asinfo"
 	"github.com/scionproto/scion/pkg/daemon/fetcher"
 	drkey_daemon "github.com/scionproto/scion/pkg/daemon/private/drkey"
 	"github.com/scionproto/scion/pkg/daemon/private/engine"
+	daemontypes "github.com/scionproto/scion/pkg/daemon/types"
 	"github.com/scionproto/scion/pkg/drkey"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	sdpb "github.com/scionproto/scion/pkg/proto/daemon"
@@ -101,7 +101,7 @@ func (s *DaemonServer) paths(
 	req *sdpb.PathsRequest,
 ) (*sdpb.PathsResponse, error) {
 	srcIA, dstIA := addr.IA(req.SourceIsdAs), addr.IA(req.DestinationIsdAs)
-	flags := daemon.PathReqFlags{
+	flags := daemontypes.PathReqFlags{
 		Refresh: req.Refresh,
 		Hidden:  req.Hidden,
 	}

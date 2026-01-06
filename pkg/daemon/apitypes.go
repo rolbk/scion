@@ -20,18 +20,12 @@ import (
 	"net"
 
 	"github.com/scionproto/scion/pkg/addr"
-	"github.com/scionproto/scion/pkg/daemon/private/types"
+	"github.com/scionproto/scion/pkg/daemon/types"
 	"github.com/scionproto/scion/pkg/private/ctrl/path_mgmt"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/private/topology"
 )
-
-// PathReqFlags contains flags for path requests.
-type PathReqFlags = types.PathReqFlags
-
-// ASInfo provides information about the local AS.
-type ASInfo = types.ASInfo
 
 type Querier struct {
 	Connector Connector
@@ -39,7 +33,7 @@ type Querier struct {
 }
 
 func (q Querier) Query(ctx context.Context, dst addr.IA) ([]snet.Path, error) {
-	paths, err := q.Connector.Paths(ctx, dst, q.IA, PathReqFlags{})
+	paths, err := q.Connector.Paths(ctx, dst, q.IA, types.PathReqFlags{})
 	if err != nil {
 		return paths, serrors.Wrap("querying paths", err, "local_isd_as", q.IA)
 	}

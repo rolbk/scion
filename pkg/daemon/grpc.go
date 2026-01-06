@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/scionproto/scion/pkg/addr"
+	daemontypes "github.com/scionproto/scion/pkg/daemon/types"
 	"github.com/scionproto/scion/pkg/drkey"
 	libgrpc "github.com/scionproto/scion/pkg/grpc"
 	libmetrics "github.com/scionproto/scion/pkg/metrics"
@@ -171,7 +172,7 @@ func (c grpcConn) Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, er
 }
 
 func (c grpcConn) Paths(ctx context.Context, dst, src addr.IA,
-	f PathReqFlags) ([]snet.Path, error) {
+	f daemontypes.PathReqFlags) ([]snet.Path, error) {
 
 	client := sdpb.NewDaemonServiceClient(c.conn)
 	response, err := client.Paths(ctx, &sdpb.PathsRequest{
@@ -189,15 +190,15 @@ func (c grpcConn) Paths(ctx context.Context, dst, src addr.IA,
 	return paths, err
 }
 
-func (c grpcConn) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
+func (c grpcConn) ASInfo(ctx context.Context, ia addr.IA) (daemontypes.ASInfo, error) {
 	client := sdpb.NewDaemonServiceClient(c.conn)
 	response, err := client.AS(ctx, &sdpb.ASRequest{IsdAs: uint64(ia)})
 	if err != nil {
 		c.metrics.incAS(err)
-		return ASInfo{}, err
+		return daemontypes.ASInfo{}, err
 	}
 	c.metrics.incAS(nil)
-	return ASInfo{
+	return daemontypes.ASInfo{
 		IA:  addr.IA(response.IsdAs),
 		MTU: uint16(response.Mtu),
 	}, nil
