@@ -54,8 +54,8 @@ const DefaultTopologyFile = DefaultConfigDir + "/topology.json"
 // DefaultCertsDir is the default directory for trust material.
 const DefaultCertsDir = DefaultConfigDir + "/certs"
 
-// standaloneOption is a functional option for NewStandaloneConnector.
-type standaloneOption func(*standaloneOptions)
+// StandaloneConnectorOption is a functional option for NewStandaloneConnector.
+type StandaloneConnectorOption func(*standaloneOptions)
 
 type standaloneOptions struct {
 	certsDir               string
@@ -66,7 +66,7 @@ type standaloneOptions struct {
 
 // WithCertsDir sets the configuration directory for trust material.
 // Defaults to /etc/scion/certs.
-func WithCertsDir(dir string) standaloneOption {
+func WithCertsDir(dir string) StandaloneConnectorOption {
 	return func(o *standaloneOptions) {
 		o.certsDir = dir
 	}
@@ -74,21 +74,21 @@ func WithCertsDir(dir string) standaloneOption {
 
 // WithDisabledSegVerification disables segment verification.
 // WARNING: This should NOT be used in production!
-func WithDisabledSegVerification() standaloneOption {
+func WithDisabledSegVerification() StandaloneConnectorOption {
 	return func(o *standaloneOptions) {
 		o.disableSegVerification = true
 	}
 }
 
 // WithPeriodicCleanup enables periodic cleanup of path database and revocation cache.
-func WithPeriodicCleanup() standaloneOption {
+func WithPeriodicCleanup() StandaloneConnectorOption {
 	return func(o *standaloneOptions) {
 		o.enablePeriodicCleanup = true
 	}
 }
 
 // WithMetrics enables metrics collection for the standalone daemon.
-func WithMetrics() standaloneOption {
+func WithMetrics() StandaloneConnectorOption {
 	return func(o *standaloneOptions) {
 		o.enableMetrics = true
 	}
@@ -119,7 +119,7 @@ func LoadASInfoFromFile(topoFile string) (asinfo.LocalASInfo, error) {
 //	    daemon.WithMetrics(),
 //	)
 func NewStandaloneConnector(
-	ctx context.Context, localASInfo asinfo.LocalASInfo, opts ...standaloneOption,
+	ctx context.Context, localASInfo asinfo.LocalASInfo, opts ...StandaloneConnectorOption,
 ) (Connector, error) {
 
 	options := &standaloneOptions{
