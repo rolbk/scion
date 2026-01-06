@@ -7,7 +7,7 @@ go_library(
     importpath = "github.com/scionproto/scion/daemon",
     visibility = ["//visibility:public"],
     deps = [
-        "//daemon/internal/servers:go_default_library",
+        "//daemon/grpc:go_default_library",
         "//pkg/addr:go_default_library",
         "//pkg/daemon:go_default_library",
         "//pkg/daemon/asinfo:go_default_library",

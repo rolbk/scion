@@ -3,10 +3,10 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
-        "grpc.go",
         "metrics.go",
+        "server.go",
     ],
-    importpath = "github.com/scionproto/scion/daemon/internal/servers",
+    importpath = "github.com/scionproto/scion/daemon/grpc",
     visibility = ["//daemon:__subpackages__"],
     deps = [
         "//pkg/addr:go_default_library",
