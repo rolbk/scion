@@ -26,7 +26,6 @@ import (
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/daemon/asinfo"
 	"github.com/scionproto/scion/pkg/daemon/fetcher"
-	drkey_daemon "github.com/scionproto/scion/pkg/daemon/private/drkey"
 	"github.com/scionproto/scion/pkg/daemon/types"
 	"github.com/scionproto/scion/pkg/drkey"
 	"github.com/scionproto/scion/pkg/log"
@@ -37,6 +36,7 @@ import (
 	"github.com/scionproto/scion/pkg/private/util"
 	"github.com/scionproto/scion/pkg/segment/iface"
 	"github.com/scionproto/scion/pkg/snet"
+	drkey_daemon "github.com/scionproto/scion/private/drkey"
 	"github.com/scionproto/scion/private/revcache"
 	"github.com/scionproto/scion/private/trust"
 )

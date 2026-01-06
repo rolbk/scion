@@ -11,7 +11,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	addr "github.com/scionproto/scion/pkg/addr"
-	"github.com/scionproto/scion/pkg/daemon/types"
+	types "github.com/scionproto/scion/pkg/daemon/types"
 	drkey "github.com/scionproto/scion/pkg/drkey"
 	path_mgmt "github.com/scionproto/scion/pkg/private/ctrl/path_mgmt"
 	snet "github.com/scionproto/scion/pkg/snet"
