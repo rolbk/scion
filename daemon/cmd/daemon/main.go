@@ -255,7 +255,7 @@ func realMain(ctx context.Context) error {
 
 	createVerifier := func() segverifier.Verifier {
 		if globalCfg.SD.DisableSegVerification {
-			return segverifier.AcceptAll{}
+			return segverifier.AcceptAllVerifier{}
 		}
 		return compat.Verifier{Verifier: trust.Verifier{
 			Engine:             engine,

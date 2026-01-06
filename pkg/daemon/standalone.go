@@ -180,7 +180,7 @@ func NewStandaloneConnector(
 	if options.disableSegVerification {
 		log.Info("SEGMENT VERIFICATION DISABLED -- SHOULD NOT USE IN PRODUCTION!")
 		inspector = nil // avoids requiring trust material
-		verifier = segverifier.AcceptAll{}
+		verifier = segverifier.AcceptAllVerifier{}
 	} else {
 		trustDB, err = storage.NewInMemoryTrustStorage()
 		if err != nil {

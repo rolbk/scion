@@ -24,25 +24,25 @@ import (
 	"github.com/scionproto/scion/pkg/scrypto/signed"
 )
 
-// AcceptAll accepts all path segments without verification.
+// AcceptAllVerifier accepts all path segments without verification.
 // It is only intended for testing purposes.
-type AcceptAll struct{}
+type AcceptAllVerifier struct{}
 
-func (AcceptAll) Verify(
+func (AcceptAllVerifier) Verify(
 	ctx context.Context, signedMsg *crypto.SignedMessage,
 	associatedData ...[]byte,
 ) (*signed.Message, error) {
 	return nil, nil
 }
 
-func (v AcceptAll) WithServer(net.Addr) Verifier {
+func (v AcceptAllVerifier) WithServer(net.Addr) Verifier {
 	return v
 }
 
-func (v AcceptAll) WithIA(addr.IA) Verifier {
+func (v AcceptAllVerifier) WithIA(addr.IA) Verifier {
 	return v
 }
 
-func (v AcceptAll) WithValidity(cppki.Validity) Verifier {
+func (v AcceptAllVerifier) WithValidity(cppki.Validity) Verifier {
 	return v
 }
