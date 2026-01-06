@@ -5,8 +5,8 @@ go_library(
     name = "go_default_library",
     srcs = [
         "apitypes.go",
+        "auto.go",
         "connector.go",
-        "default.go",
         "grpc.go",
         "grpc_metrics.go",
         "standalone.go",
