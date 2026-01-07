@@ -142,11 +142,11 @@ Method descriptions:
   - Paths: Queries paths from src to dst AS. This is the primary method for
     path lookups. Use PathReqFlags to control caching and refresh behavior:
 
-	// Get cached paths (fast, may be stale)
-	paths, err := conn.Paths(ctx, dst, src, PathReqFlags{})
+    To get cached paths (fast, may be stale):
+    paths, err := conn.Paths(ctx, dst, src, PathReqFlags{})
 
-	// Force refresh from control service
-	paths, err := conn.Paths(ctx, dst, src, PathReqFlags{Refresh: true})
+    To force refresh from control service:
+    paths, err := conn.Paths(ctx, dst, src, PathReqFlags{Refresh: true})
 
   - ASInfo: Returns information about an AS, including whether it's a core AS
     and its MTU. Pass the zero IA to query the local AS.
