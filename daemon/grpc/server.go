@@ -35,7 +35,7 @@ import (
 	"github.com/scionproto/scion/pkg/slices"
 	"github.com/scionproto/scion/pkg/snet"
 	snetpath "github.com/scionproto/scion/pkg/snet/path"
-	drkey_daemon "github.com/scionproto/scion/private/drkey"
+	drkeyengine "github.com/scionproto/scion/private/drkey"
 	"github.com/scionproto/scion/private/revcache"
 	"github.com/scionproto/scion/private/topology"
 	"github.com/scionproto/scion/private/trust"
@@ -64,7 +64,7 @@ func NewDaemonServer(
 	fetcher fetcher.Fetcher,
 	revCache revcache.RevCache,
 	asInspector trust.Inspector,
-	drkeyClient *drkey_daemon.ClientEngine,
+	drkeyClient *drkeyengine.ClientEngine,
 	metrics Metrics,
 ) *DaemonServer {
 	return &DaemonServer{

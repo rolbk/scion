@@ -27,11 +27,11 @@ import (
 	"github.com/scionproto/scion/pkg/private/xtest"
 	cppb "github.com/scionproto/scion/pkg/proto/control_plane"
 	mock_cppb "github.com/scionproto/scion/pkg/proto/control_plane/mock_control_plane"
-	sd_drkey "github.com/scionproto/scion/private/drkey"
-	sd_grpc "github.com/scionproto/scion/private/drkey/grpc"
+	drkeyengine "github.com/scionproto/scion/private/drkey"
+	drkeygrpc "github.com/scionproto/scion/private/drkey/grpc"
 )
 
-var _ sd_drkey.Fetcher = (*sd_grpc.Fetcher)(nil)
+var _ drkeyengine.Fetcher = (*drkeygrpc.Fetcher)(nil)
 
 func TestGetHostHost(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -57,7 +57,7 @@ func TestGetHostHost(t *testing.T) {
 	cppb.RegisterDRKeyIntraServiceServer(server.Server(), daemonSrv)
 	server.Start(t)
 
-	fetcher := sd_grpc.Fetcher{
+	fetcher := drkeygrpc.Fetcher{
 		Dialer: server,
 	}
 
