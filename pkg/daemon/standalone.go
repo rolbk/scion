@@ -266,7 +266,8 @@ func NewStandaloneConnector(
 		Fetcher:     newFetcher,
 		RevCache:    revCache,
 		ASInspector: inspector,
-		DRKeyClient: nil, // DRKey not supported in standalone daemon
+		// TODO(emairoll): Implement DRKey for standalone mode
+		DRKeyClient: nil,
 	}
 
 	var standaloneMetrics standalone.Metrics

@@ -60,7 +60,7 @@ func WithConfigDir(dir string) AutoConnectorOption {
 //  4. If daemon is reachable at default address, connect via gRPC.
 //  5. Return error if none of the above are successful.
 //
-// TODO: include bootstrapping functionality
+// TODO(emairoll): Include bootstrapping functionality
 func NewAutoConnector(ctx context.Context, opts ...AutoConnectorOption) (Connector, error) {
 	options := &suppliedOptions{}
 	for _, opt := range opts {
