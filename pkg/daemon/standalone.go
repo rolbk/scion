@@ -45,9 +45,6 @@ import (
 	trustmetrics "github.com/scionproto/scion/private/trust/metrics"
 )
 
-// DefaultConfigDir is the default directory for SCION configuration.
-const DefaultConfigDir = "/etc/scion"
-
 // DefaultTopologyFile is the default path to the topology file.
 const DefaultTopologyFile = DefaultConfigDir + "/topology.json"
 
