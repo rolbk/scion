@@ -24,7 +24,7 @@ import (
 	"github.com/scionproto/scion/private/topology"
 )
 
-// LocalASInfo provides control plane info information for the daemon engine.
+// LocalASInfo provides control plane information for the daemon engine.
 type LocalASInfo interface {
 	// IA returns the local ISD-AS number.
 	IA() addr.IA
