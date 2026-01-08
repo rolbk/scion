@@ -63,7 +63,7 @@ from CLI flag parsing:
 # Standalone Mode
 
 Standalone mode runs the daemon logic in-process, which is useful for:
-  - Edge deployments without a separate daemon process
+  - Deployments without a separate daemon process
   - CLI tools that need minimal dependencies
   - Testing and development
 
@@ -114,59 +114,7 @@ The Connector interface is the central abstraction of this package. All connecti
 modes (standalone, remote) implement this interface, allowing applications to work
 with any backend transparently.
 
-	type Connector interface {
-	    LocalIA(ctx context.Context) (addr.IA, error)
-	    PortRange(ctx context.Context) (uint16, uint16, error)
-	    Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, error)
-	    Paths(ctx context.Context, dst, src addr.IA, f PathReqFlags) ([]snet.Path, error)
-	    ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error)
-	    SVCInfo(ctx context.Context, svcTypes []addr.SVC) (map[addr.SVC][]string, error)
-	    RevNotification(ctx context.Context, revInfo *path_mgmt.RevInfo) error
-	    DRKeyGetASHostKey(ctx context.Context, meta drkey.ASHostMeta) (drkey.ASHostKey, error)
-	    DRKeyGetHostASKey(ctx context.Context, meta drkey.HostASMeta) (drkey.HostASKey, error)
-	    DRKeyGetHostHostKey(ctx context.Context, meta drkey.HostHostMeta) (drkey.HostHostKey, error)
-	    Close() error
-	}
-
-Method descriptions:
-
-  - LocalIA: Returns the local ISD-AS number. This value never changes during
-    the lifetime of the connection.
-
-  - PortRange: Returns the start and end of the SCION/UDP endhost port range
-    configured for the local AS. Applications should bind to ports within this range.
-
-  - Interfaces: Returns a map of interface IDs to their underlay addresses.
-    Used for determining the next hop when sending packets.
-
-  - Paths: Queries paths from src to dst AS. This is the primary method for
-    path lookups. Use PathReqFlags to control caching and refresh behavior:
-
-    To get cached paths (fast, may be stale):
-    paths, err := conn.Paths(ctx, dst, src, PathReqFlags{})
-
-    To force refresh from control service:
-    paths, err := conn.Paths(ctx, dst, src, PathReqFlags{Refresh: true})
-
-  - ASInfo: Returns information about an AS, including whether it's a core AS
-    and its MTU. Pass the zero IA to query the local AS.
-
-  - SVCInfo: Returns addresses of infrastructure services (currently only
-    control service is supported). Used for service discovery.
-
-  - RevNotification: Notifies the daemon about a revoked interface, typically
-    called after receiving an SCMP PathDown message. This updates the local
-    path cache to avoid using revoked paths.
-
-  - DRKeyGetASHostKey, DRKeyGetHostASKey, DRKeyGetHostHostKey: DRKey (Dynamically
-    Recreatable Key) operations for cryptographic key derivation. Note: These
-    methods are only available in remote mode; standalone mode returns an error.
-
-  - Close: Releases all resources associated with the connector. Always defer
-    Close() after successfully creating a connector.
-
-All methods are safe for concurrent use and block until completion or context
-cancellation.
+See [Connector] for all available methods.
 
 # Loading Topology
 
