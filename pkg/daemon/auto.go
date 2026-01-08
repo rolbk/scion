@@ -25,10 +25,10 @@ import (
 )
 
 // AutoConnectorOption is a functional option for NewAutoConnector and
-// overrides the default priorities.
-type AutoConnectorOption func(*suppliedOptions)
+// overrides the default options.
+type AutoConnectorOption func(*autoConnectorOptions)
 
-type suppliedOptions struct {
+type autoConnectorOptions struct {
 	sciond    string
 	configDir string
 }
@@ -37,7 +37,7 @@ type suppliedOptions struct {
 // When set, the connector will connect to the specified daemon via gRPC.
 // Mutually exclusive with WithConfigDir.
 func WithDaemon(addr string) AutoConnectorOption {
-	return func(o *suppliedOptions) {
+	return func(o *autoConnectorOptions) {
 		o.sciond = addr
 	}
 }
@@ -46,7 +46,7 @@ func WithDaemon(addr string) AutoConnectorOption {
 // The directory should contain topology.json and a certs/ subdirectory.
 // Mutually exclusive with WithDaemon.
 func WithConfigDir(dir string) AutoConnectorOption {
-	return func(o *suppliedOptions) {
+	return func(o *autoConnectorOptions) {
 		o.configDir = dir
 	}
 }
@@ -59,10 +59,8 @@ func WithConfigDir(dir string) AutoConnectorOption {
 //  3. If topology file exists at default location, use standalone mode.
 //  4. If daemon is reachable at default address, connect via gRPC.
 //  5. Return error if none of the above are successful.
-//
-// TODO(emairoll): Include bootstrapping functionality
 func NewAutoConnector(ctx context.Context, opts ...AutoConnectorOption) (Connector, error) {
-	options := &suppliedOptions{}
+	options := &autoConnectorOptions{}
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -107,7 +105,8 @@ func NewAutoConnector(ctx context.Context, opts ...AutoConnectorOption) (Connect
 		return NewService(DefaultAPIAddress).Connect(ctx)
 	}
 
-	// TODO: Better error message
+	// TODO(emairoll): Include bootstrapping functionality
+
 	return nil, serrors.New(
 		"no suitable daemon connection method found",
 		"tried_supplied_api_address", options.sciond,
