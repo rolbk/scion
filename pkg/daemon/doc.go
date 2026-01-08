@@ -35,8 +35,8 @@ selects the best connection method based on available configuration:
 	paths, err := conn.Paths(ctx, dstIA, srcIA, daemon.PathReqFlags{})
 
 NewAutoConnector tries the following in order:
- 1. Standalone mode using /etc/scion/topology.json (if file exists)
- 2. Remote mode connecting to daemon at 127.0.0.1:30255 (if reachable)
+ 1. Standalone mode using [DefaultTopologyFile] (if file exists)
+ 2. Remote mode connecting to daemon at [DefaultAPIAddress] (if reachable)
  3. Returns error if neither is available
 
 # Explicit Mode Selection
