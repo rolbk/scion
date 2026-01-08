@@ -96,9 +96,6 @@ func WithMetrics() StandaloneConnectorOption {
 
 // LoadASInfoFromFile loads local AS Information from a file.
 // The returned struct can be passed to NewStandaloneConnector.
-//
-// Most users should use NewStandaloneConnector() directly with a file path
-// instead of using this function.
 func LoadASInfoFromFile(topoFile string) (asinfo.LocalASInfo, error) {
 	return asinfo.LoadFromTopoFile(topoFile)
 }
