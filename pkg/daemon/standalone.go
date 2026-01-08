@@ -16,6 +16,8 @@ package daemon
 
 import (
 	"context"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -45,11 +47,19 @@ import (
 	trustmetrics "github.com/scionproto/scion/private/trust/metrics"
 )
 
-// DefaultTopologyFile is the default path to the topology file.
-const DefaultTopologyFile = DefaultConfigDir + "/topology.json"
+var DefaultConfigDir = func() string {
+	switch runtime.GOOS {
+	case "windows":
+		return filepath.Join("C:", "ProgramData", "scion")
+	case "darwin":
+		return filepath.Join("/Library", "Application Support", "scion")
+	default: // linux, unix
+		return filepath.Join("/etc", "scion")
+	}
+}()
 
-// DefaultCertsDir is the default directory for trust material.
-const DefaultCertsDir = DefaultConfigDir + "/certs"
+var DefaultTopologyFile = filepath.Join(DefaultConfigDir, "topology.json")
+var DefaultCertsDir = filepath.Join(DefaultConfigDir, "certs")
 
 // StandaloneConnectorOption is a functional option for NewStandaloneConnector.
 type StandaloneConnectorOption func(*standaloneConnectorOptions)
