@@ -142,15 +142,5 @@ The package provides helper types for common patterns:
 	// TopoQuerier provides topology queries
 	topoQuerier := daemon.TopoQuerier{Connector: conn}
 	addr, err := topoQuerier.UnderlayAnycast(ctx, addr.SvcCS)
-
-# Configuration Defaults
-
-The package defines the following defaults:
-
-	DefaultConfigDir     = "/etc/scion"
-	DefaultTopologyFile  = "/etc/scion/topology.json"
-	DefaultCertsDir      = "/etc/scion/certs"
-	DefaultAPIAddress    = "127.0.0.1:30255"
-	DefaultAPIPort       = 30255
 */
 package daemon
