@@ -55,9 +55,9 @@ const DefaultTopologyFile = DefaultConfigDir + "/topology.json"
 const DefaultCertsDir = DefaultConfigDir + "/certs"
 
 // StandaloneConnectorOption is a functional option for NewStandaloneConnector.
-type StandaloneConnectorOption func(*standaloneOptions)
+type StandaloneConnectorOption func(*standaloneConnectorOptions)
 
-type standaloneOptions struct {
+type standaloneConnectorOptions struct {
 	certsDir               string
 	disableSegVerification bool
 	enablePeriodicCleanup  bool
@@ -65,9 +65,9 @@ type standaloneOptions struct {
 }
 
 // WithCertsDir sets the configuration directory for trust material.
-// Defaults to /etc/scion/certs.
+// Defaults to [DefaultCertsDir].
 func WithCertsDir(dir string) StandaloneConnectorOption {
-	return func(o *standaloneOptions) {
+	return func(o *standaloneConnectorOptions) {
 		o.certsDir = dir
 	}
 }
@@ -75,21 +75,21 @@ func WithCertsDir(dir string) StandaloneConnectorOption {
 // WithDisabledSegVerification disables segment verification.
 // WARNING: This should NOT be used in production!
 func WithDisabledSegVerification() StandaloneConnectorOption {
-	return func(o *standaloneOptions) {
+	return func(o *standaloneConnectorOptions) {
 		o.disableSegVerification = true
 	}
 }
 
 // WithPeriodicCleanup enables periodic cleanup of path database and revocation cache.
 func WithPeriodicCleanup() StandaloneConnectorOption {
-	return func(o *standaloneOptions) {
+	return func(o *standaloneConnectorOptions) {
 		o.enablePeriodicCleanup = true
 	}
 }
 
 // WithMetrics enables metrics collection for the standalone daemon.
 func WithMetrics() StandaloneConnectorOption {
-	return func(o *standaloneOptions) {
+	return func(o *standaloneConnectorOptions) {
 		o.enableMetrics = true
 	}
 }
@@ -122,7 +122,7 @@ func NewStandaloneConnector(
 	ctx context.Context, localASInfo asinfo.LocalASInfo, opts ...StandaloneConnectorOption,
 ) (Connector, error) {
 
-	options := &standaloneOptions{
+	options := &standaloneConnectorOptions{
 		certsDir: DefaultCertsDir,
 	}
 	for _, opt := range opts {
