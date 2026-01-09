@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"net/netip"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -141,13 +142,18 @@ func tempEnv(t *testing.T, key, val string) {
 }
 
 func TestSCIONEnvironmentConfigDir(t *testing.T) {
+	defaultDir := ""
+	if runtime.GOOS == "linux" {
+		defaultDir = "/etc/scion"
+	}
+
 	testCases := map[string]struct {
 		flags     []string
 		configDir string
 	}{
 		"no flag": {
 			flags:     []string{},
-			configDir: "",
+			configDir: defaultDir,
 		},
 		"config-dir flag set": {
 			flags:     []string{"--config-dir", "/custom/path"},
