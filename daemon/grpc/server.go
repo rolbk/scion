@@ -15,6 +15,7 @@
 package grpc
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"net/netip"
@@ -356,8 +357,8 @@ func pathToPB(path snet.Path) *sdpb.Path {
 	}
 
 	epicAuths := &sdpb.EpicAuths{
-		AuthPhvf: append([]byte(nil), meta.EpicAuths.AuthPHVF...),
-		AuthLhvf: append([]byte(nil), meta.EpicAuths.AuthLHVF...),
+		AuthPhvf: bytes.Clone(meta.EpicAuths.AuthPHVF),
+		AuthLhvf: bytes.Clone(meta.EpicAuths.AuthLHVF),
 	}
 
 	var discovery map[uint64]*sdpb.DiscoveryInformation
