@@ -16,6 +16,7 @@ package daemon
 
 import (
 	"context"
+	"net"
 	"path/filepath"
 	"time"
 
@@ -63,7 +64,10 @@ func NewAutoConnector(ctx context.Context, opts ...AutoConnectorOption) (Connect
 
 	// Priority 1: Use provided daemon address
 	if options.sciond != "" {
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		if !isReachable(options.sciond, DefaultConnectionTimeout) {
+			return nil, serrors.New("daemon not reachable", "address", options.sciond)
+		}
+		ctx, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
 		defer cancel()
 		return NewService(options.sciond).Connect(ctx)
 	}
@@ -86,4 +90,13 @@ func NewAutoConnector(ctx context.Context, opts ...AutoConnectorOption) (Connect
 		"no suitable daemon connection method found: " +
 			"either WithDaemon or WithConfigDir must be specified",
 	)
+}
+
+func isReachable(addr string, timeout time.Duration) bool {
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
 }
