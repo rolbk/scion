@@ -170,21 +170,17 @@ func TestSCIONEnvironmentValidate(t *testing.T) {
 		flags   []string
 		wantErr bool
 	}{
-		"no flags": {
-			flags:   []string{},
-			wantErr: false,
-		},
-		"only sciond": {
+		"sciond set": {
 			flags:   []string{"--sciond", "127.0.0.1:30255"},
 			wantErr: false,
 		},
-		"only config-dir": {
+		"config-dir set": {
 			flags:   []string{"--config-dir", "/custom/path"},
 			wantErr: false,
 		},
-		"both flags - error": {
+		"both flags set - sciond takes priority": {
 			flags:   []string{"--sciond", "127.0.0.1:30255", "--config-dir", "/custom/path"},
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 	for name, tc := range testCases {

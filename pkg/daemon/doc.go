@@ -22,10 +22,15 @@ SCION control plane. It supports two modes of operation:
 
 # Quick Start
 
-The simplest way to get a Connector is using NewAutoConnector, which automatically
-selects the best connection method based on available configuration:
+Use NewAutoConnector with WithDaemon (for remote daemon) or WithConfigDir
+(for standalone mode):
 
-	conn, err := daemon.NewAutoConnector(ctx)
+	// Remote daemon connection
+	conn, err := daemon.NewAutoConnector(ctx, daemon.WithDaemon("127.0.0.1:30255"))
+
+	// Or standalone mode with local config
+	conn, err := daemon.NewAutoConnector(ctx, daemon.WithConfigDir("/etc/scion"))
+
 	if err != nil {
 	    log.Fatal(err)
 	}
@@ -34,30 +39,12 @@ selects the best connection method based on available configuration:
 	// Query paths to a destination
 	paths, err := conn.Paths(ctx, dstIA, srcIA, daemon.PathReqFlags{})
 
-NewAutoConnector tries the following in order:
- 1. Standalone mode using [DefaultTopologyFile] (if file exists)
- 2. Remote mode connecting to daemon at [DefaultAPIAddress] (if reachable)
- 3. Returns error if neither is available
+If both WithDaemon and WithConfigDir are set, WithDaemon takes priority.
+Empty string options are ignored, making it safe to pass values from CLI flags:
 
-# Explicit Mode Selection
-
-To explicitly choose a connection mode, use the functional options:
-
-	// Force remote daemon connection
-	conn, err := daemon.NewAutoConnector(ctx, daemon.WithDaemon("127.0.0.1:30255"))
-
-	// Force standalone mode with custom config directory
-	conn, err := daemon.NewAutoConnector(ctx, daemon.WithConfigDir("/path/to/config"))
-
-Note: WithDaemon and WithConfigDir are mutually exclusive.
-
-Options with empty strings are ignored, making it safe to pass values directly
-from CLI flag parsing:
-
-	// daemonAddr and configDir may be empty strings from CLI flags
 	conn, err := daemon.NewAutoConnector(ctx,
-	    daemon.WithDaemon(daemonAddr),
-	    daemon.WithConfigDir(configDir),
+	    daemon.WithDaemon(daemonAddr),    // may be empty
+	    daemon.WithConfigDir(configDir),  // may be empty
 	)
 
 # Standalone Mode
@@ -88,7 +75,7 @@ For more control over standalone mode, use NewStandaloneConnector directly:
 
 Standalone mode requires:
   - topology.json: Network topology file with control service addresses
-  - certs/: Directory containing TRC files for segment verification
+  - certs/: Directory containing TRC files for segment verification (required via WithCertsDir)
 
 To disable segment verification (NOT recommended for production):
 

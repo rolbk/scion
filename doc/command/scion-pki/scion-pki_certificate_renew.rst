@@ -120,7 +120,8 @@ Options
                                --ca is mutually exclusive with --remote
       --common-name string     The common name that replaces the common name in the subject template
       --config-dir string      Directory containing topology.json and certs/ for standalone mode.
-                               Defaults to /etc/scion. Mutually exclusive with --sciond.
+                               If both --sciond and --config-dir are set, --sciond takes priority.
+                               Defaults to /etc/scion.
       --curve string           The elliptic curve to use (P-256|P-384|P-521) (default "P-256")
       --expires-in string      Remaining time threshold for renewal
       --features strings       enable development features ()
@@ -144,7 +145,7 @@ Options
       --reuse-key              Reuse the provided private key instead of creating a fresh private key
       --sciond string          Connect to SCION Daemon at the specified address instead of using
                                the local topology.json (IP:Port or "default" for 127.0.0.1:30255).
-                               Mutually exclusive with --config-dir.
+                               If both --sciond and --config-dir are set, --sciond takes priority.
       --sequence string        Space separated list of hop predicates
       --subject string         The path to the custom subject for the CSR
       --timeout duration       The timeout for the renewal request per CA (default 10s)

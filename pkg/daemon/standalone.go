@@ -16,8 +16,6 @@ package daemon
 
 import (
 	"context"
-	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -47,20 +45,6 @@ import (
 	trustmetrics "github.com/scionproto/scion/private/trust/metrics"
 )
 
-var DefaultConfigDir = func() string {
-	switch runtime.GOOS {
-	case "windows":
-		return filepath.Join("C:", "ProgramData", "scion")
-	case "darwin":
-		return filepath.Join("/Library", "Application Support", "scion")
-	default: // linux, unix
-		return filepath.Join("/etc", "scion")
-	}
-}()
-
-var DefaultTopologyFile = filepath.Join(DefaultConfigDir, "topology.json")
-var DefaultCertsDir = filepath.Join(DefaultConfigDir, "certs")
-
 // StandaloneConnectorOption is a functional option for NewStandaloneConnector.
 type StandaloneConnectorOption func(*standaloneConnectorOptions)
 
@@ -71,8 +55,8 @@ type standaloneConnectorOptions struct {
 	enableMetrics          bool
 }
 
-// WithCertsDir sets the configuration directory for trust material.
-// Defaults to [DefaultCertsDir].
+// WithCertsDir sets the directory containing TRC certificates for trust material.
+// This option is required unless segment verification is disabled.
 func WithCertsDir(dir string) StandaloneConnectorOption {
 	return func(o *standaloneConnectorOptions) {
 		o.certsDir = dir
@@ -126,11 +110,14 @@ func NewStandaloneConnector(
 	ctx context.Context, localASInfo asinfo.LocalASInfo, opts ...StandaloneConnectorOption,
 ) (Connector, error) {
 
-	options := &standaloneConnectorOptions{
-		certsDir: DefaultCertsDir,
-	}
+	options := &standaloneConnectorOptions{}
 	for _, opt := range opts {
 		opt(options)
+	}
+
+	// Validate that certsDir is set unless segment verification is disabled
+	if options.certsDir == "" && !options.disableSegVerification {
+		return nil, serrors.New("WithCertsDir is required unless segment verification is disabled")
 	}
 
 	// Create dialer for control service

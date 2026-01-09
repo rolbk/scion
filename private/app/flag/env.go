@@ -20,6 +20,7 @@ import (
 	"io/fs"
 	"net/netip"
 	"os"
+	"runtime"
 	"sync"
 
 	"github.com/spf13/pflag"
@@ -34,6 +35,8 @@ const (
 	defaultDaemon = daemon.DefaultAPIAddress
 
 	defaultEnvironmentFile = "/etc/scion/environment.json"
+
+	defaultConfigDirLinux = "/etc/scion"
 )
 
 type stringVal string
@@ -109,17 +112,26 @@ func (e *SCIONEnvironment) Register(flagSet *pflag.FlagSet) {
 		(*stringVal)(&sciond), "sciond", "",
 		`Connect to SCION Daemon at the specified address instead of using
 the local topology.json (IP:Port or "default" for `+defaultDaemon+`).
-Mutually exclusive with --config-dir.`,
+If both --sciond and --config-dir are set, --sciond takes priority.`,
 	)
+
+	configDirHelp := `Directory containing topology.json and certs/ for standalone mode.
+If both --sciond and --config-dir are set, --sciond takes priority.
+`
+	if runtime.GOOS == "linux" {
+		configDirHelp += `Defaults to ` + defaultConfigDirLinux + `.`
+	} else {
+		configDirHelp += `Required on this platform (no default).`
+	}
 	e.configDirFlag = flagSet.VarPF(
 		(*stringVal)(&e.configDir), "config-dir", "",
-		`Directory containing topology.json and certs/ for standalone mode.
-Defaults to `+daemon.DefaultConfigDir+`. Mutually exclusive with --sciond.`,
+		configDirHelp,
 	)
 }
 
 // Validate checks that the flags are consistent.
-// Returns an error if mutually exclusive flags are both set.
+// Returns an error if neither --sciond nor --config-dir is set and there's no default
+// (i.e., on non-Linux platforms where --config-dir has no default).
 func (e *SCIONEnvironment) Validate() error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
@@ -127,10 +139,23 @@ func (e *SCIONEnvironment) Validate() error {
 	sciondSet := e.sciondFlag != nil && e.sciondFlag.Changed
 	configDirSet := e.configDirFlag != nil && e.configDirFlag.Changed
 
-	if sciondSet && configDirSet {
-		return serrors.New("--sciond and --config-dir are mutually exclusive")
+	// If either flag is explicitly set, we're good
+	if sciondSet || configDirSet {
+		return nil
 	}
-	return nil
+
+	// Check if there's a daemon configured via environment
+	if e.sciondEnv != nil {
+		return nil
+	}
+
+	// On Linux, we have a default config directory
+	if runtime.GOOS == "linux" {
+		return nil
+	}
+
+	// On non-Linux platforms with no flags set, we need either --sciond or --config-dir
+	return serrors.New("either --sciond or --config-dir must be specified on this platform")
 }
 
 // LoadExternalVar loads variables from the SCION environment file and from the
@@ -240,15 +265,21 @@ func (e *SCIONEnvironment) Local() netip.Addr {
 	return netip.Addr{}
 }
 
-// ConfigDir returns the configuration directory if set via --config-dir flag.
-// Returns an empty string if the flag was not set, allowing the caller to use
-// the default configuration directory.
+// ConfigDir returns the configuration directory for standalone mode.
+// The value is determined with the following precedence:
+//  1. Command line flag (--config-dir)
+//  2. On Linux: defaults to /etc/scion
+//  3. On other platforms: returns empty string (must be specified via flag)
 func (e *SCIONEnvironment) ConfigDir() string {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
 	if e.configDirFlag != nil && e.configDirFlag.Changed {
 		return e.configDir
+	}
+	// Default to /etc/scion on Linux only
+	if runtime.GOOS == "linux" {
+		return defaultConfigDirLinux
 	}
 	return ""
 }

@@ -16,8 +16,6 @@ package daemon
 
 import (
 	"context"
-	"net"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -35,7 +33,7 @@ type autoConnectorOptions struct {
 
 // WithDaemon sets the daemon address for a gRPC connector.
 // When set, the connector will connect to the specified daemon via gRPC.
-// Mutually exclusive with WithConfigDir.
+// If both WithDaemon and WithConfigDir are set, WithDaemon takes priority.
 func WithDaemon(addr string) AutoConnectorOption {
 	return func(o *autoConnectorOptions) {
 		o.sciond = addr
@@ -44,30 +42,23 @@ func WithDaemon(addr string) AutoConnectorOption {
 
 // WithConfigDir sets the configuration directory for standalone mode.
 // The directory should contain topology.json and a certs/ subdirectory.
-// Mutually exclusive with WithDaemon.
+// If both WithDaemon and WithConfigDir are set, WithDaemon takes priority.
 func WithConfigDir(dir string) AutoConnectorOption {
 	return func(o *autoConnectorOptions) {
 		o.configDir = dir
 	}
 }
 
-// NewAutoConnector creates a new Connector based on supplied and default options.
+// NewAutoConnector creates a new Connector based on supplied options.
 //
 // Priority order:
-//  1. If WithDaemon was called, return a gRPC connector to the specified daemon.
-//  2. If WithConfigDir was called, use standalone mode with the specified directory.
-//  3. If topology file exists at default location, use standalone mode.
-//  4. If daemon is reachable at default address, connect via gRPC.
-//  5. Return error if none of the above are successful.
+//  1. If WithDaemon was supplied, return a gRPC connector to the specified daemon.
+//  2. If WithConfigDir was supplied, use standalone mode with the specified directory.
+//  3. Return error if neither option was provided.
 func NewAutoConnector(ctx context.Context, opts ...AutoConnectorOption) (Connector, error) {
 	options := &autoConnectorOptions{}
 	for _, opt := range opts {
 		opt(options)
-	}
-
-	// Check mutual exclusivity
-	if options.sciond != "" && options.configDir != "" {
-		return nil, serrors.New("WithDaemon and WithConfigDir are mutually exclusive")
 	}
 
 	// Priority 1: Use provided daemon address
@@ -89,38 +80,10 @@ func NewAutoConnector(ctx context.Context, opts ...AutoConnectorOption) (Connect
 		return NewStandaloneConnector(ctx, localASInfo, WithCertsDir(certsDir))
 	}
 
-	// Priority 3: Create from topology file at default location if it exists
-	if _, err := os.Stat(DefaultTopologyFile); err == nil {
-		localASInfo, err := LoadASInfoFromFile(DefaultTopologyFile)
-		if err != nil {
-			return nil, serrors.Wrap("loading topology from file", err)
-		}
-		return NewStandaloneConnector(ctx, localASInfo, WithCertsDir(DefaultCertsDir))
-	}
-
-	// Priority 4: Connect to daemon via gRPC if reachable
-	if isReachable(DefaultAPIAddress, 500*time.Millisecond) {
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
-		defer cancel()
-		return NewService(DefaultAPIAddress).Connect(ctx)
-	}
-
 	// TODO(emairoll): Include bootstrapping functionality
 
 	return nil, serrors.New(
-		"no suitable daemon connection method found",
-		"tried_supplied_api_address", options.sciond,
-		"tried_supplied_config_dir", options.configDir,
-		"tried_default_topology_file", DefaultTopologyFile,
-		"tried_default_api_address", DefaultAPIAddress,
+		"no suitable daemon connection method found: " +
+			"either WithDaemon or WithConfigDir must be specified",
 	)
-}
-
-func isReachable(addr string, timeout time.Duration) bool {
-	conn, err := net.DialTimeout("tcp", addr, timeout)
-	if err != nil {
-		return false
-	}
-	conn.Close()
-	return true
 }

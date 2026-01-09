@@ -36,14 +36,15 @@ Options
 ::
 
       --config-dir string   Directory containing topology.json and certs/ for standalone mode.
-                            Defaults to /etc/scion. Mutually exclusive with --sciond.
+                            If both --sciond and --config-dir are set, --sciond takes priority.
+                            Defaults to /etc/scion.
   -h, --help                help for address
       --isd-as isd-as       The local ISD-AS to use. (default 0-0)
       --json                Write the output as machine readable json
   -l, --local ip            Local IP address to listen on. (default invalid IP)
       --sciond string       Connect to SCION Daemon at the specified address instead of using
                             the local topology.json (IP:Port or "default" for 127.0.0.1:30255).
-                            Mutually exclusive with --config-dir.
+                            If both --sciond and --config-dir are set, --sciond takes priority.
 
 SEE ALSO
 ~~~~~~~~
