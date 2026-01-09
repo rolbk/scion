@@ -48,24 +48,24 @@ func (s *MultiSegmentSplitter) Split(ctx context.Context, dst addr.IA) (Requests
 	srcCore := s.Core
 
 	if s.Inspector == nil { // In case inspector is not set, fall back to basic splitting
-		reqs := Requests{}
-		if !srcCore {
-			reqs = append(reqs, Requests{{Src: src, Dst: toWildCard(src), SegType: Up},
-				{Src: toWildCard(src), Dst: toWildCard(dst), SegType: Core},
-				{Src: toWildCard(dst), Dst: dst, SegType: Core},
-				{Src: toWildCard(dst), Dst: dst, SegType: Down}}...)
-			if src.ISD() == dst.ISD() && dst.IsWildcard() {
-				reqs = append(reqs, Requests{{Src: src, Dst: dst, SegType: Up}}...)
-			}
-			return reqs, nil
-		} else {
+		if srcCore {
 			return Requests{
-				{Src: src, Dst: dst, SegType: Down},
-				{Src: src, Dst: dst, SegType: Core},
-				{Src: src, Dst: toWildCard(dst), SegType: Core},
-				{Src: toWildCard(dst), Dst: dst, SegType: Down},
+				{SegType: Down, Src: src, Dst: dst},
+				{SegType: Core, Src: src, Dst: dst},
+				{SegType: Core, Src: src, Dst: toWildCard(dst)},
+				{SegType: Down, Src: toWildCard(dst), Dst: dst},
 			}, nil
 		}
+		reqs := Requests{
+			{SegType: Up, Src: src, Dst: toWildCard(src)},
+			{SegType: Core, Src: toWildCard(src), Dst: toWildCard(dst)},
+			{SegType: Core, Src: toWildCard(dst), Dst: dst},
+			{SegType: Down, Src: toWildCard(dst), Dst: dst},
+		}
+		if src.ISD() == dst.ISD() && dst.IsWildcard() {
+			reqs = append(reqs, Request{SegType: Up, Src: src, Dst: dst})
+		}
+		return reqs, nil
 	}
 
 	singleCore, dstCore, err := s.inspect(ctx, src, dst)
