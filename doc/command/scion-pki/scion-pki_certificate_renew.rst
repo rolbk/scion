@@ -121,7 +121,7 @@ Options
       --common-name string     The common name that replaces the common name in the subject template
       --config-dir string      Directory containing topology.json and certs/ for standalone mode.
                                If both --sciond and --config-dir are set, --sciond takes priority.
-                               Defaults to /etc/scion.
+                               Defaults to /etc/scion on Linux.
       --curve string           The elliptic curve to use (P-256|P-384|P-521) (default "P-256")
       --expires-in string      Remaining time threshold for renewal
       --features strings       enable development features ()

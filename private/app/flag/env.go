@@ -119,7 +119,7 @@ If both --sciond and --config-dir are set, --sciond takes priority.`,
 If both --sciond and --config-dir are set, --sciond takes priority.
 `
 	if runtime.GOOS == "linux" {
-		configDirHelp += `Defaults to ` + defaultConfigDirLinux + `.`
+		configDirHelp += `Defaults to ` + defaultConfigDirLinux + ` on Linux.`
 	} else {
 		configDirHelp += `Required on this platform (no default).`
 	}

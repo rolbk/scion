@@ -37,7 +37,7 @@ Options
 
       --config-dir string   Directory containing topology.json and certs/ for standalone mode.
                             If both --sciond and --config-dir are set, --sciond takes priority.
-                            Defaults to /etc/scion.
+                            Defaults to /etc/scion on Linux.
   -h, --help                help for address
       --isd-as isd-as       The local ISD-AS to use. (default 0-0)
       --json                Write the output as machine readable json

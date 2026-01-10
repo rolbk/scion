@@ -81,7 +81,7 @@ Options
 
       --config-dir string      Directory containing topology.json and certs/ for standalone mode.
                                If both --sciond and --config-dir are set, --sciond takes priority.
-                               Defaults to /etc/scion.
+                               Defaults to /etc/scion on Linux.
       --epic                   Enable EPIC.
       --format string          Specify the output format (human|json|yaml) (default "human")
   -h, --help                   help for traceroute
