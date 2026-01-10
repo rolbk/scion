@@ -56,6 +56,9 @@ func WithConfigDir(dir string) AutoConnectorOption {
 //  1. If WithDaemon was supplied, return a gRPC connector to the specified daemon.
 //  2. If WithConfigDir was supplied, use standalone mode with the specified directory.
 //  3. Return error if neither option was provided.
+//
+// Note: In standalone mode, topology information is loaded once and never reloaded.
+// For dynamic updates, use [NewStandaloneConnector] with a custom [LocalASInfo].
 func NewAutoConnector(ctx context.Context, opts ...AutoConnectorOption) (Connector, error) {
 	options := &autoConnectorOptions{}
 	for _, opt := range opts {
