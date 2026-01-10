@@ -59,7 +59,7 @@ func (s *MultiSegmentSplitter) Split(ctx context.Context, dst addr.IA) (Requests
 		reqs := Requests{
 			{SegType: Up, Src: src, Dst: toWildCard(src)},
 			{SegType: Core, Src: toWildCard(src), Dst: toWildCard(dst)},
-			{SegType: Core, Src: toWildCard(dst), Dst: dst},
+			{SegType: Core, Src: toWildCard(src), Dst: dst},
 			{SegType: Down, Src: toWildCard(dst), Dst: dst},
 		}
 		if src.ISD() == dst.ISD() && dst.IsWildcard() {
