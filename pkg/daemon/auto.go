@@ -64,10 +64,10 @@ func NewAutoConnector(ctx context.Context, opts ...AutoConnectorOption) (Connect
 
 	// Priority 1: Use provided daemon address
 	if options.sciond != "" {
-		if !isReachable(options.sciond, DefaultConnectionTimeout) {
+		if !isReachable(options.sciond, defaultConnectionTimeout) {
 			return nil, serrors.New("daemon not reachable", "address", options.sciond)
 		}
-		ctx, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
+		ctx, cancel := context.WithTimeout(ctx, defaultConnectionTimeout)
 		defer cancel()
 		return NewService(options.sciond).Connect(ctx)
 	}

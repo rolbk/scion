@@ -51,8 +51,8 @@ const (
 	DefaultAPIAddress = "127.0.0.1:30255"
 	// DefaultAPIPort contains the default port for a daemon client API socket.
 	DefaultAPIPort = 30255
-	// DefaultConnectionTimeout contains the default timeout for a daemon connection.
-	DefaultConnectionTimeout = time.Second
+	// defaultConnectionTimeout contains the default timeout for a daemon connection.
+	defaultConnectionTimeout = time.Second
 )
 
 // NewService returns a SCION Daemon API connection factory.
