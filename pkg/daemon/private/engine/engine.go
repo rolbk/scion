@@ -57,18 +57,18 @@ type DaemonEngine struct {
 }
 
 // LocalIA returns the local ISD-AS number.
-func (e *DaemonEngine) LocalIA(ctx context.Context) (addr.IA, error) {
+func (e *DaemonEngine) LocalIA(_ context.Context) (addr.IA, error) {
 	return e.IA, nil
 }
 
 // PortRange returns the dispatched port range.
-func (e *DaemonEngine) PortRange(ctx context.Context) (uint16, uint16, error) {
+func (e *DaemonEngine) PortRange(_ context.Context) (uint16, uint16, error) {
 	start, end := e.LocalASInfo.PortRange()
 	return start, end, nil
 }
 
 // Interfaces returns the map of interface identifiers to the underlay internal address.
-func (e *DaemonEngine) Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, error) {
+func (e *DaemonEngine) Interfaces(_ context.Context) (map[uint16]netip.AddrPort, error) {
 	result := make(map[uint16]netip.AddrPort)
 	topo := e.LocalASInfo
 	for _, ifID := range topo.IfIDs() {
@@ -147,7 +147,7 @@ func (e *DaemonEngine) backgroundPaths(origCtx context.Context, src, dst addr.IA
 }
 
 // ASInfo requests information about an AS. The zero IA returns local AS info.
-func (e *DaemonEngine) ASInfo(ctx context.Context, ia addr.IA) (types.ASInfo, error) {
+func (e *DaemonEngine) ASInfo(_ context.Context, ia addr.IA) (types.ASInfo, error) {
 	reqIA := ia
 	if reqIA.IsZero() {
 		reqIA = e.IA
@@ -163,7 +163,7 @@ func (e *DaemonEngine) ASInfo(ctx context.Context, ia addr.IA) (types.ASInfo, er
 }
 
 // SVCInfo requests information about addresses and ports of infrastructure services.
-func (e *DaemonEngine) SVCInfo(ctx context.Context) ([]string, error) {
+func (e *DaemonEngine) SVCInfo(_ context.Context) ([]string, error) {
 	var uris []string
 	for _, h := range e.LocalASInfo.ControlServiceAddresses() {
 		uris = append(uris, h.String())

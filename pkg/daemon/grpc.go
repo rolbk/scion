@@ -41,11 +41,6 @@ import (
 	"github.com/scionproto/scion/private/topology"
 )
 
-// Errors for SCION Daemon API requests
-var (
-	ErrUnableToConnect = serrors.New("unable to connect to the SCION Daemon")
-)
-
 const (
 	// DefaultAPIAddress contains the system default for a daemon API socket.
 	DefaultAPIAddress = "127.0.0.1:30255"
@@ -116,7 +111,7 @@ type Service struct {
 	Metrics Metrics
 }
 
-func (s Service) Connect(ctx context.Context) (Connector, error) {
+func (s Service) Connect(_ context.Context) (Connector, error) {
 	conn, err := grpc.NewClient(s.Address,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		libgrpc.UnaryClientInterceptor(),

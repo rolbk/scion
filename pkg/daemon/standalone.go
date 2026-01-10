@@ -127,7 +127,7 @@ func NewStandaloneConnector(
 				panic("unsupported address type, possible implementation error: " +
 					base.String())
 			}
-			targets := []resolver.Address{}
+			var targets []resolver.Address
 			for _, entry := range localASInfo.ControlServiceAddresses() {
 				targets = append(targets, resolver.Address{Addr: entry.String()})
 			}

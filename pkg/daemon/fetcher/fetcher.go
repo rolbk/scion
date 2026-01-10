@@ -32,10 +32,6 @@ import (
 	"github.com/scionproto/scion/private/trust"
 )
 
-const (
-	DefaultMinWorkerLifetime = 10 * time.Second
-)
-
 type TrustStore interface {
 	trust.Inspector
 }
