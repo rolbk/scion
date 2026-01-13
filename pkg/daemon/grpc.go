@@ -51,7 +51,6 @@ const (
 )
 
 // NewService returns a SCION Daemon API connection factory.
-// Deprecated: Use Service struct directly instead.
 func NewService(name string) Service {
 	return Service{
 		Address: name,
